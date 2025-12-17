@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --tesla-red: #e82127;
+  --tesla-dark: #171a20;
+  --tesla-gray: #393c41;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #0a0a0a;
+  color: #e5e5e5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Video canvas styling */
+canvas {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* Range slider custom styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--tesla-red);
+  border-radius: 50%;
+  margin-top: -5px;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--tesla-red);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Button base styles */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-150 ease-out;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black;
+}
+
+.btn-primary {
+  @apply bg-tesla-red text-white hover:bg-red-700 focus:ring-red-500;
+}
+
+.btn-secondary {
+  @apply bg-gray-700 text-white hover:bg-gray-600 focus:ring-gray-500;
+}
+
+.btn-ghost {
+  @apply bg-transparent text-gray-300 hover:bg-gray-800 focus:ring-gray-500;
+}
+
+/* React Grid Layout styles */
+.react-grid-layout {
+  position: relative;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.react-grid-layout .react-grid-item {
+  background: #111;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.react-grid-layout .react-grid-item > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top;
+}
+
+.react-grid-item.cssTransforms {
+  transition: transform 200ms ease;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 100;
+  box-shadow: 0 0 0 2px var(--tesla-red), 0 10px 40px rgba(0,0,0,0.5);
+  cursor: grabbing !important;
+}
+
+.react-grid-item:hover {
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+}
+
