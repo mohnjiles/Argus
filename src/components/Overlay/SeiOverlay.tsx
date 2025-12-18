@@ -609,7 +609,6 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
   const lastSampleTimeRef = useRef<number>(0);
   const rafRef = useRef<number>(0);
   const targetRef = useRef({ long: 0, lat: 0 });
-  const smoothedRef = useRef({ long: 0, lat: 0 });
   const lastVideoTimestampRef = useRef<number | undefined>(undefined);
   const pauseTimeRef = useRef<number>(0);
   const wasPausedRef = useRef<boolean>(false);
@@ -644,9 +643,6 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
 
     const width = 200;
     const height = 100;
-    const padding = { top: 15, right: 10, bottom: 20, left: 30 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
     const maxG = 1.0;
 
     const animate = () => {
@@ -667,16 +663,12 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
 
       // Only update values when not paused
       if (!paused) {
-        // Smooth current values
-        smoothedRef.current.long = lerp(smoothedRef.current.long, targetRef.current.long, SMOOTHING);
-        smoothedRef.current.lat = lerp(smoothedRef.current.lat, targetRef.current.lat, SMOOTHING);
-
-        // Add samples at our target rate using smoothed values
+        // Add samples at our target rate using raw values (no smoothing for granularity)
         const minInterval = 1000 / CHART_SAMPLE_RATE;
         if (now - lastSampleTimeRef.current >= minInterval) {
           historyRef.current.push({
-            long: smoothedRef.current.long,
-            lat: smoothedRef.current.lat,
+            long: targetRef.current.long,
+            lat: targetRef.current.lat,
             time: now
           });
           lastSampleTimeRef.current = now;
@@ -690,49 +682,30 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillRect(0, 0, width, height);
-
-      // Chart area background
-      ctx.fillStyle = 'rgba(30, 30, 30, 0.8)';
-      ctx.fillRect(padding.left, padding.top, chartWidth, chartHeight);
-
-      // Grid lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = 1;
-
-      // Horizontal grid lines at -0.5, 0, 0.5 G
-      const yPositions = [-0.5, 0, 0.5];
-      yPositions.forEach(g => {
-        const y = padding.top + chartHeight / 2 - (g / maxG) * (chartHeight / 2);
-        ctx.beginPath();
-        ctx.moveTo(padding.left, y);
-        ctx.lineTo(width - padding.right, y);
-        ctx.stroke();
-      });
-
-      // Zero line (more visible)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      // Background - use the full canvas
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
       ctx.beginPath();
-      const zeroY = padding.top + chartHeight / 2;
-      ctx.moveTo(padding.left, zeroY);
-      ctx.lineTo(width - padding.right, zeroY);
+      ctx.roundRect(0, 0, width, height, 6);
+      ctx.fill();
+
+      // Subtle border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Y-axis labels
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '9px system-ui';
-      ctx.textAlign = 'right';
-      ctx.fillText('+1G', padding.left - 4, padding.top + 4);
-      ctx.fillText('0', padding.left - 4, zeroY + 3);
-      ctx.fillText('-1G', padding.left - 4, height - padding.bottom);
+      // Minimal padding to maximize chart area
+      const pad = 5;
+      const chartWidth = width - pad * 2;
+      const chartHeight = height - pad * 2;
+      const zeroY = pad + chartHeight / 2;
 
-      // X-axis labels
-      ctx.textAlign = 'center';
-      ctx.fillText('10s', padding.left, height - 4);
-      ctx.fillText('5s', padding.left + chartWidth / 2, height - 4);
-      ctx.fillText('now', width - padding.right, height - 4);
+      // Zero line (for reference)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pad, zeroY);
+      ctx.lineTo(width - pad, zeroY);
+      ctx.stroke();
 
       // Draw data
       const history = historyRef.current;
@@ -742,17 +715,22 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         // Helper to convert data point to canvas coords
         const toCanvasX = (time: number) => {
           const timeOffset = now - time;
-          return width - padding.right - (timeOffset / timeRange) * chartWidth;
+          return width - pad - (timeOffset / timeRange) * chartWidth;
         };
 
-        // Draw longitudinal (red for brake/accel)
+        const toCanvasY = (g: number) => {
+          const clamped = Math.max(-maxG, Math.min(maxG, g));
+          return zeroY - (clamped / maxG) * (chartHeight / 2);
+        };
+
+        // Draw longitudinal (red for brake/accel) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         let started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
-          const y = padding.top + chartHeight / 2 - (Math.max(-maxG, Math.min(maxG, p.long)) / maxG) * (chartHeight / 2);
+          const y = toCanvasY(p.long);
           if (!started) {
             ctx.moveTo(x, y);
             started = true;
@@ -762,14 +740,14 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         });
         ctx.stroke();
 
-        // Draw lateral (blue)
+        // Draw lateral (blue) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
-          const y = padding.top + chartHeight / 2 - (Math.max(-maxG, Math.min(maxG, p.lat)) / maxG) * (chartHeight / 2);
+          const y = toCanvasY(p.lat);
           if (!started) {
             ctx.moveTo(x, y);
             started = true;
@@ -780,18 +758,26 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         ctx.stroke();
       }
 
-      // Legend
-      ctx.fillStyle = '#f87171';
-      ctx.fillRect(padding.left + 5, 4, 8, 8);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.font = '8px system-ui';
+      // Compact legend overlay (top-left corner, inside chart)
+      ctx.font = 'bold 10px system-ui';
       ctx.textAlign = 'left';
-      ctx.fillText('Long', padding.left + 16, 11);
+      ctx.textBaseline = 'top';
 
+      // Semi-transparent background for legend
+      const legendText = 'LNG / LAT';
+      const textWidth = ctx.measureText(legendText).width;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(pad, pad, textWidth + 6, 14);
+
+      // Draw legend with colors
+      ctx.fillStyle = '#f87171';
+      ctx.fillText('LNG', pad + 2, pad + 2);
+      const lngWidth = ctx.measureText('LNG').width;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillText(' / ', pad + 2 + lngWidth, pad + 2);
+      const slashWidth = ctx.measureText(' / ').width;
       ctx.fillStyle = '#60a5fa';
-      ctx.fillRect(padding.left + 50, 4, 8, 8);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.fillText('Lat', padding.left + 61, 11);
+      ctx.fillText('LAT', pad + 2 + lngWidth + slashWidth, pad + 2);
 
       // Continue animation
       rafRef.current = requestAnimationFrame(animate);
@@ -824,7 +810,6 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
   const lastSampleTimeRef = useRef<number>(0);
   const rafRef = useRef<number>(0);
   const targetRef = useRef({ throttle: 0, brake: false });
-  const smoothedRef = useRef({ throttle: 0 });
   const lastVideoTimestampRef = useRef<number | undefined>(undefined);
   const pauseTimeRef = useRef<number>(0);
   const wasPausedRef = useRef<boolean>(false);
@@ -859,9 +844,6 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
 
     const width = 200;
     const height = 100;
-    const padding = { top: 15, right: 10, bottom: 20, left: 30 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
 
     const animate = () => {
       const realNow = Date.now();
@@ -879,14 +861,11 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
 
       // Only update values when not paused
       if (!paused) {
-        // Smooth throttle (brake is binary so don't smooth)
-        smoothedRef.current.throttle = lerp(smoothedRef.current.throttle, targetRef.current.throttle, SMOOTHING);
-
-        // Add samples at target rate
+        // Add samples at target rate using raw values (no smoothing for granularity)
         const minInterval = 1000 / CHART_SAMPLE_RATE;
         if (now - lastSampleTimeRef.current >= minInterval) {
           historyRef.current.push({
-            throttle: smoothedRef.current.throttle,
+            throttle: targetRef.current.throttle,
             brake: targetRef.current.brake,
             time: now
           });
@@ -901,41 +880,21 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillRect(0, 0, width, height);
+      // Background - use the full canvas
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(0, 0, width, height, 6);
+      ctx.fill();
 
-      // Chart area background
-      ctx.fillStyle = 'rgba(30, 30, 30, 0.8)';
-      ctx.fillRect(padding.left, padding.top, chartWidth, chartHeight);
-
-      // Grid lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      // Subtle border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 1;
+      ctx.stroke();
 
-      // Horizontal grid lines at 0%, 50%, 100%
-      const percentages = [0, 50, 100];
-      percentages.forEach(pct => {
-        const y = padding.top + chartHeight - (pct / 100) * chartHeight;
-        ctx.beginPath();
-        ctx.moveTo(padding.left, y);
-        ctx.lineTo(width - padding.right, y);
-        ctx.stroke();
-      });
-
-      // Y-axis labels
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '9px system-ui';
-      ctx.textAlign = 'right';
-      ctx.fillText('100%', padding.left - 4, padding.top + 4);
-      ctx.fillText('50%', padding.left - 4, padding.top + chartHeight / 2 + 3);
-      ctx.fillText('0%', padding.left - 4, height - padding.bottom);
-
-      // X-axis labels
-      ctx.textAlign = 'center';
-      ctx.fillText('10s', padding.left, height - 4);
-      ctx.fillText('5s', padding.left + chartWidth / 2, height - 4);
-      ctx.fillText('now', width - padding.right, height - 4);
+      // Minimal padding to maximize chart area
+      const pad = 5;
+      const chartWidth = width - pad * 2;
+      const chartHeight = height - pad * 2;
 
       // Draw data
       const history = historyRef.current;
@@ -944,11 +903,11 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
 
         const toCanvasX = (time: number) => {
           const timeOffset = now - time;
-          return width - padding.right - (timeOffset / timeRange) * chartWidth;
+          return width - pad - (timeOffset / timeRange) * chartWidth;
         };
 
-        // Draw brake as filled areas (red when braking)
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; // red with transparency
+        // Draw brake as filled areas (red when braking) - brighter
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
         for (let i = 0; i < history.length - 1; i++) {
           const p1 = history[i];
           const p2 = history[i + 1];
@@ -958,21 +917,21 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
             const x2 = toCanvasX(p2.time);
             ctx.fillRect(
               Math.min(x1, x2),
-              padding.top,
+              pad,
               Math.abs(x2 - x1),
               chartHeight
             );
           }
         }
 
-        // Draw throttle line (green)
+        // Draw throttle line (green) - thicker
         ctx.beginPath();
-        ctx.strokeStyle = '#4ade80'; // green-400
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#4ade80';
+        ctx.lineWidth = 2.5;
         let started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
-          const y = padding.top + chartHeight - (p.throttle / 100) * chartHeight;
+          const y = pad + chartHeight - (p.throttle / 100) * chartHeight;
           if (!started) {
             ctx.moveTo(x, y);
             started = true;
@@ -983,18 +942,26 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
         ctx.stroke();
       }
 
-      // Legend
-      ctx.fillStyle = '#4ade80';
-      ctx.fillRect(padding.left + 5, 4, 8, 8);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.font = '8px system-ui';
+      // Compact legend overlay (top-left corner, inside chart)
+      ctx.font = 'bold 10px system-ui';
       ctx.textAlign = 'left';
-      ctx.fillText('Throttle', padding.left + 16, 11);
+      ctx.textBaseline = 'top';
 
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.7)';
-      ctx.fillRect(padding.left + 60, 4, 8, 8);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.fillText('Brake', padding.left + 71, 11);
+      // Semi-transparent background for legend
+      const legendText = 'THR / BRK';
+      const textWidth = ctx.measureText(legendText).width;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(pad, pad, textWidth + 6, 14);
+
+      // Draw legend with colors
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText('THR', pad + 2, pad + 2);
+      const thrWidth = ctx.measureText('THR').width;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillText(' / ', pad + 2 + thrWidth, pad + 2);
+      const slashWidth = ctx.measureText(' / ').width;
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 2);
 
       // Continue animation
       rafRef.current = requestAnimationFrame(animate);
@@ -1027,7 +994,6 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
   const lastSampleTimeRef = useRef<number>(0);
   const rafRef = useRef<number>(0);
   const targetRef = useRef({ speed: 0 });
-  const smoothedRef = useRef({ speed: 0 });
   const lastVideoTimestampRef = useRef<number | undefined>(undefined);
   const pauseTimeRef = useRef<number>(0);
   const wasPausedRef = useRef<boolean>(false);
@@ -1061,9 +1027,6 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
 
     const width = 200;
     const height = 100;
-    const padding = { top: 15, right: 10, bottom: 20, left: 35 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
 
     const animate = () => {
       const realNow = Date.now();
@@ -1081,14 +1044,11 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
 
       // Only update values when not paused
       if (!paused) {
-        // Smooth speed
-        smoothedRef.current.speed = lerp(smoothedRef.current.speed, targetRef.current.speed, SMOOTHING);
-
-        // Add samples at target rate
+        // Add samples at target rate using raw values (no smoothing for granularity)
         const minInterval = 1000 / CHART_SAMPLE_RATE;
         if (now - lastSampleTimeRef.current >= minInterval) {
           historyRef.current.push({
-            speed: smoothedRef.current.speed,
+            speed: targetRef.current.speed,
             time: now
           });
           lastSampleTimeRef.current = now;
@@ -1108,43 +1068,33 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillRect(0, 0, width, height);
+      // Background - use the full canvas
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(0, 0, width, height, 6);
+      ctx.fill();
 
-      // Chart area background
-      ctx.fillStyle = 'rgba(30, 30, 30, 0.8)';
-      ctx.fillRect(padding.left, padding.top, chartWidth, chartHeight);
-
-      // Grid lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      // Subtle border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 1;
+      ctx.stroke();
 
-      // Horizontal grid lines
-      const gridLines = speedUnit === 'mph' ? [0, 20, 40, 60, 80] : [0, 30, 60, 90, 120];
-      gridLines.forEach(spd => {
-        const y = padding.top + chartHeight - (spd / maxSpeed) * chartHeight;
+      // Minimal padding to maximize chart area
+      const pad = 5;
+      const chartWidth = width - pad * 2;
+      const chartHeight = height - pad * 2;
+
+      // Subtle grid lines (just a few horizontal)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      const gridSpeeds = speedUnit === 'mph' ? [40, 80] : [60, 120];
+      gridSpeeds.forEach(spd => {
+        const y = pad + chartHeight - (spd / maxSpeed) * chartHeight;
         ctx.beginPath();
-        ctx.moveTo(padding.left, y);
-        ctx.lineTo(width - padding.right, y);
+        ctx.moveTo(pad, y);
+        ctx.lineTo(width - pad, y);
         ctx.stroke();
       });
-
-      // Y-axis labels
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '9px system-ui';
-      ctx.textAlign = 'right';
-      const labelSpeeds = speedUnit === 'mph' ? [0, 40, 80] : [0, 60, 120];
-      labelSpeeds.forEach(spd => {
-        const y = padding.top + chartHeight - (spd / maxSpeed) * chartHeight;
-        ctx.fillText(spd.toString(), padding.left - 4, y + 3);
-      });
-
-      // X-axis labels
-      ctx.textAlign = 'center';
-      ctx.fillText('10s', padding.left, height - 4);
-      ctx.fillText('5s', padding.left + chartWidth / 2, height - 4);
-      ctx.fillText('now', width - padding.right, height - 4);
 
       // Draw data
       const history = historyRef.current;
@@ -1153,17 +1103,46 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
 
         const toCanvasX = (time: number) => {
           const timeOffset = now - time;
-          return width - padding.right - (timeOffset / timeRange) * chartWidth;
+          return width - pad - (timeOffset / timeRange) * chartWidth;
         };
 
-        // Draw speed line with gradient (cyan to blue)
+        const toCanvasY = (speed: number) => {
+          return pad + chartHeight - (Math.min(speed, maxSpeed) / maxSpeed) * chartHeight;
+        };
+
+        // Fill area under the line with gradient - brighter
+        if (history.length > 0) {
+          const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
+          gradient.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
+          gradient.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
+
+          ctx.beginPath();
+          ctx.fillStyle = gradient;
+          const firstX = toCanvasX(history[0].time);
+          const firstY = toCanvasY(history[0].speed);
+          ctx.moveTo(firstX, height - pad);
+          ctx.lineTo(firstX, firstY);
+
+          history.forEach(p => {
+            const x = toCanvasX(p.time);
+            const y = toCanvasY(p.speed);
+            ctx.lineTo(x, y);
+          });
+
+          const lastX = toCanvasX(history[history.length - 1].time);
+          ctx.lineTo(lastX, height - pad);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Draw speed line (cyan) - thicker
         ctx.beginPath();
-        ctx.strokeStyle = '#22d3ee'; // cyan-400
+        ctx.strokeStyle = '#22d3ee';
         ctx.lineWidth = 2.5;
         let started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
-          const y = padding.top + chartHeight - (Math.min(p.speed, maxSpeed) / maxSpeed) * chartHeight;
+          const y = toCanvasY(p.speed);
           if (!started) {
             ctx.moveTo(x, y);
             started = true;
@@ -1172,40 +1151,21 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
           }
         });
         ctx.stroke();
-
-        // Fill area under the line with gradient
-        if (history.length > 0) {
-          const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
-          gradient.addColorStop(0, 'rgba(34, 211, 238, 0.3)'); // cyan with transparency
-          gradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
-
-          ctx.beginPath();
-          ctx.fillStyle = gradient;
-          const firstX = toCanvasX(history[0].time);
-          const firstY = padding.top + chartHeight - (Math.min(history[0].speed, maxSpeed) / maxSpeed) * chartHeight;
-          ctx.moveTo(firstX, height - padding.bottom);
-          ctx.lineTo(firstX, firstY);
-
-          history.forEach(p => {
-            const x = toCanvasX(p.time);
-            const y = padding.top + chartHeight - (Math.min(p.speed, maxSpeed) / maxSpeed) * chartHeight;
-            ctx.lineTo(x, y);
-          });
-
-          const lastX = toCanvasX(history[history.length - 1].time);
-          ctx.lineTo(lastX, height - padding.bottom);
-          ctx.closePath();
-          ctx.fill();
-        }
       }
 
-      // Legend
-      ctx.fillStyle = '#22d3ee';
-      ctx.fillRect(padding.left + 5, 4, 8, 8);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.font = '8px system-ui';
+      // Compact legend overlay (top-left corner, inside chart)
+      ctx.font = 'bold 10px system-ui';
       ctx.textAlign = 'left';
-      ctx.fillText(`Speed (${speedUnit})`, padding.left + 16, 11);
+      ctx.textBaseline = 'top';
+
+      // Semi-transparent background for legend
+      const legendText = `SPD ${speedUnit.toUpperCase()}`;
+      const textWidth = ctx.measureText(legendText).width;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(pad, pad, textWidth + 6, 14);
+
+      ctx.fillStyle = '#22d3ee';
+      ctx.fillText(legendText, pad + 2, pad + 2);
 
       // Continue animation
       rafRef.current = requestAnimationFrame(animate);

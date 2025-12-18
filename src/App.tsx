@@ -8,7 +8,7 @@ import { usePlayback } from './hooks/usePlayback'
 import { useFileSystem } from './hooks/useFileSystem'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useSettings } from './hooks/useSettings'
-import type { VideoEvent } from './types'
+import type { VideoEvent, CameraAngle } from './types'
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -17,10 +17,11 @@ function App() {
   const fileSystem = useFileSystem()
   const playback = usePlayback()
   const { settings, setSpeedUnit, setOverlayPosition, setShowOverlay, setShowGMeter, setShowAccelChart, setShowPedalChart, setShowSpeedChart, setShowAccelDebug, resetSettings } = useSettings()
+  const [thumbCamera, setThumbCamera] = useState<CameraAngle>('front')
 
   // Ref to VideoPlayer for seeking
   const videoPlayerRef = useRef<VideoPlayerHandle>(null)
-  
+
   // Handle time updates from primary video
   const handleTimeUpdate = useCallback((time: number) => {
     playback.setCurrentTime(time)
@@ -77,7 +78,7 @@ function App() {
     if (playback.eventClipIndex !== undefined && playback.eventTimeOffset !== undefined) {
       const targetClipIndex = playback.eventClipIndex
       const targetTime = playback.eventTimeOffset
-      
+
       if (targetClipIndex === playback.currentClipIndex) {
         // Same clip, just seek
         handleSeek(targetTime)
@@ -118,7 +119,7 @@ function App() {
             Argus
           </h1>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {playback.currentClip && (
             <button
@@ -197,7 +198,7 @@ function App() {
               currentTime={playback.currentTime}
             />
           </div>
-          
+
           {/* Controls */}
           <div className="flex-shrink-0 border-t border-gray-800">
             <Controls
@@ -219,6 +220,9 @@ function App() {
               playbackSpeed={playback.playbackSpeed}
               onSpeedChange={handleSpeedChange}
               disabled={!playback.currentClip}
+              currentClip={playback.currentClip ?? undefined}
+              camera={thumbCamera}
+              onCameraChange={setThumbCamera}
             />
           </div>
         </main>

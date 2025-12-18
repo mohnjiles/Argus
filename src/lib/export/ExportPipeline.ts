@@ -4,7 +4,7 @@ import type { ExportOptions, ExportResult } from './types';
 import { QUALITY_PRESETS } from './constants';
 import { getCodecString, getMuxerCodec } from './utils';
 import { createSpatialLayout, compactLayout } from './layout';
-import { drawOverlay, drawSpeedChart, drawPedalChart, drawAccelChart, getChartSlotCount, toGForce, type SpeedHistoryEntry, type PedalHistoryEntry, type AccelHistoryEntry, type ChartType } from './overlays';
+import { drawOverlay, drawSpeedChart, drawPedalChart, drawAccelChart, getChartSlotCount, toGForce, loadSteeringWheelImage, type SpeedHistoryEntry, type PedalHistoryEntry, type AccelHistoryEntry, type ChartType } from './overlays';
 import { SequentialFrameBuffer } from './SequentialFrameBuffer';
 
 export async function runExportPipeline(options: ExportOptions): Promise<ExportResult> {
@@ -136,7 +136,7 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
     // Use first clip's average duration
     const avgFrameDuration = refConfig.durations.length > 0
         ? refConfig.durations.reduce((sum, d) => sum + d, 0) / refConfig.durations.length
-        : 33;
+        : (1000 / 30);
     const frameDurationUs = Math.round(avgFrameDuration * 1000);
     const frameRate = 1000 / avgFrameDuration;
 
@@ -165,6 +165,9 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
     // 4. Processing Loop
     const canvas = new OffscreenCanvas(outputWidth, outputHeight);
     const ctx = canvas.getContext('2d')!;
+
+    // Load steering wheel image for overlay
+    const steeringWheelImage = includeOverlay ? await loadSteeringWheelImage() : null;
 
     // State across clips
     let globalFrameIndex = 0;
@@ -248,7 +251,7 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
             let foundStart = false;
 
             for (let i = 0; i < clipFrames.length; i++) {
-                const d = clipConfig.durations[i] || 33;
+                const d = clipConfig.durations[i] || avgFrameDuration;
                 const t = cumTime / 1000;
                 if (!foundStart && t >= clipStartTime) {
                     clipStartFrame = i;
@@ -270,7 +273,7 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
             // Initial offset for overlay timestamp
             let clipInitialOffsetMs = 0;
             for (let i = 0; i < clipStartFrame; i++) {
-                clipInitialOffsetMs += clipConfig.durations[i] || 33;
+                clipInitialOffsetMs += clipConfig.durations[i] || avgFrameDuration;
             }
 
             // Render loop for this clip
@@ -333,7 +336,7 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
                     const videoTimestamp = new Date(clip.timestamp.getTime() + clipInitialOffsetMs + currentClipTimeMs);
 
                     if (includeOverlay) {
-                        drawOverlay(ctx, sei, outputWidth, outputHeight, videoTimestamp, hideLocation);
+                        drawOverlay(ctx, sei, outputWidth, outputHeight, videoTimestamp, hideLocation, steeringWheelImage);
                     }
 
                     if (sei && chartsToRender.length > 0) {
@@ -394,12 +397,12 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
                 });
 
                 encoder.encode(videoFrame, {
-                    keyFrame: (globalFrameIndex % 30 === 0) || (frameIdx === clipStartFrame && !isFirstClip)
+                    keyFrame: (globalFrameIndex % Math.round(frameRate) === 0) || (frameIdx === clipStartFrame && !isFirstClip)
                 });
                 videoFrame.close();
 
                 // Update times
-                const d = clipConfig.durations[frameIdx] || 33;
+                const d = clipConfig.durations[frameIdx] || avgFrameDuration;
                 currentClipTimeMs += d;
                 globalCumulativeTimeMs += d;
                 globalFrameIndex++;

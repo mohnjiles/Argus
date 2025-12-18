@@ -54,18 +54,17 @@ export async function generateThumbnails(options: ThumbnailOptions): Promise<Thu
         // However, for a filmstrip, performance is key.
         const targetFrames: VideoFrame[] = [];
         for (const ts of targetTimestamps) {
-            // Find closest frame to timestamp
+            // Find closest frame to timestamp using actual frame timestamps
             let closest = frames[0];
-            let minDiff = Math.abs(0 - ts);
+            let minDiff = Infinity;
 
-            // Tesla clips usually have frames at 30fps, so we can estimate index
+            // Estimate starting index but search a wider window to handle VFR or different framerates
             const estimatedIdx = Math.floor(ts * 30);
-            const searchStart = Math.max(0, estimatedIdx - 60);
-            const searchEnd = Math.min(frames.length - 1, estimatedIdx + 60);
+            const searchStart = Math.max(0, estimatedIdx - 300); // 10 second window
+            const searchEnd = Math.min(frames.length - 1, estimatedIdx + 300);
 
             for (let i = searchStart; i <= searchEnd; i++) {
-                const frameTs = i / 30; // Approximation if we don't have per-frame timestamps easily accessible
-                const diff = Math.abs(frameTs - ts);
+                const diff = Math.abs(frames[i].timestamp - ts);
                 if (diff < minDiff) {
                     minDiff = diff;
                     closest = frames[i];

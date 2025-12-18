@@ -1,15 +1,15 @@
 // Camera types available on Tesla vehicles
-export type CameraAngle = 
-  | 'front' 
-  | 'back' 
-  | 'left_repeater' 
-  | 'right_repeater' 
-  | 'left_pillar' 
+export type CameraAngle =
+  | 'front'
+  | 'back'
+  | 'left_repeater'
+  | 'right_repeater'
+  | 'left_pillar'
   | 'right_pillar';
 
 export const CAMERA_ANGLES: CameraAngle[] = [
   'front',
-  'back', 
+  'back',
   'left_repeater',
   'right_repeater',
   'left_pillar',
@@ -92,6 +92,7 @@ export interface VideoConfig {
 // Parsed video frame
 export interface VideoFrame {
   index: number;
+  timestamp: number; // in seconds
   keyframe: boolean;
   data: Uint8Array;
   sei: SeiMetadata | null;
@@ -149,22 +150,22 @@ export interface EventData {
 // Format event reason into human-readable label
 export function formatEventReason(reason?: string): string {
   if (!reason) return '';
-  
+
   // Check exact matches first, then prefixes (most specific to least specific)
   // Using startsWith for prefix matching
-  
+
   // Exact matches
   if (reason === 'sentry_aware_object_detection') return 'Sentry Mode (Object)';
   if (reason === 'user_interaction_dashcam_icon_tapped') return 'Saved (via Dashcam icon)';
   if (reason === 'user_interaction_dashcam_panel_save') return 'Saved (via Dashcam panel)';
   if (reason === 'user_interaction_dashcam_launcher_action_tapped') return 'Saved (via Launcher)';
   if (reason === 'user_interaction_honk') return 'Horn Honked';
-  
+
   // Prefix matches (check more specific prefixes first)
   if (reason.startsWith('sentry_aware_accel_')) return 'Sentry Mode (Accelerometer)';
   if (reason.startsWith('user_interaction_')) return 'General User Interaction';
   if (reason.startsWith('sentry_')) return 'General Sentry';
-  
+
   // Fallback: convert snake_case to Title Case
   return reason
     .split('_')
@@ -175,9 +176,9 @@ export function formatEventReason(reason?: string): string {
 // Format camera index from event.json into human-readable label
 export function formatEventCamera(camera?: string | number): string {
   if (camera === undefined || camera === null) return '';
-  
+
   const cameraNum = typeof camera === 'string' ? parseInt(camera, 10) : camera;
-  
+
   const cameraMap: Record<number, string> = {
     0: 'Front',
     1: 'Fisheye',
@@ -189,7 +190,7 @@ export function formatEventCamera(camera?: string | number): string {
     7: 'Rear',
     8: 'Cabin',
   };
-  
+
   return cameraMap[cameraNum] || `Camera ${cameraNum}`;
 }
 
@@ -252,9 +253,9 @@ export function parseTimestamp(filename: string): { timestamp: Date; camera: Cam
   const [, datePart, timePart, camera] = match;
   const [year, month, day] = datePart.split('-').map(Number);
   const [hour, minute, second] = timePart.split('-').map(Number);
-  
+
   const timestamp = new Date(year, month - 1, day, hour, minute, second);
-  
+
   if (!CAMERA_ANGLES.includes(camera as CameraAngle)) {
     return null;
   }

@@ -141,6 +141,7 @@ export class DashcamMP4 {
     let pendingSei: SeiMetadata | null = null;
     let currentSps = config.sps;
     let currentPps = config.pps;
+    let cumulativeTimeMs = 0;
 
     while (cursor + 4 <= end) {
       const len = this.view.getUint32(cursor);
@@ -158,14 +159,25 @@ export class DashcamMP4 {
         pendingSei = this.decodeSei(data); // SEI
       } else if (type === 5 || type === 1) {
         // IDR (keyframe) or Slice (non-keyframe)
+        const frameTimestamp = cumulativeTimeMs / 1000;
         frames.push({
           index: frames.length,
+          timestamp: frameTimestamp,
           keyframe: type === 5,
           data,
           sei: pendingSei,
           sps: currentSps,
           pps: currentPps
         });
+
+        // Add duration of this frame to cumulative time for next frame
+        // Use exact frame duration if available, otherwise fallback to average frame duration
+        const avgDuration = config.durations.length > 0
+          ? config.durations.reduce((sum, d) => sum + d, 0) / config.durations.length
+          : (1000 / 30);
+        const frameDuration = config.durations[frames.length - 1] || avgDuration;
+        cumulativeTimeMs += frameDuration;
+
         pendingSei = null;
       }
       cursor += len;
@@ -267,10 +279,10 @@ export class DashcamMP4 {
     const data = frame.keyframe
       ? DashcamMP4.concat(sc, frame.sps || config.sps, sc, frame.pps || config.pps, sc, frame.data)
       : DashcamMP4.concat(sc, frame.data);
-    
+
     return new EncodedVideoChunk({
       type: frame.keyframe ? 'key' : 'delta',
-      timestamp: timestamp ?? (frame.index * 33333), // microseconds (fallback ~30fps)
+      timestamp: timestamp ?? Math.round(frame.timestamp * 1_000_000), // convert seconds to microseconds
       data
     });
   }

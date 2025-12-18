@@ -1,6 +1,53 @@
 import type { SeiMetadata } from '../../types';
 import { formatSeiForDisplay } from '../sei-decoder';
 
+// Cached steering wheel image
+let steeringWheelImage: ImageBitmap | null = null;
+
+/**
+ * Load the steering wheel image for export overlays.
+ * Should be called once before starting export.
+ * Returns the ImageBitmap or null if loading fails.
+ */
+export async function loadSteeringWheelImage(): Promise<ImageBitmap | null> {
+    if (steeringWheelImage) return steeringWheelImage;
+
+    try {
+        const response = await fetch('/wheel.png');
+        const blob = await response.blob();
+        steeringWheelImage = await createImageBitmap(blob);
+        return steeringWheelImage;
+    } catch (e) {
+        console.warn('Failed to load steering wheel image:', e);
+        return null;
+    }
+}
+
+/**
+ * Draw a rotating steering wheel icon at the specified position
+ */
+function drawSteeringWheel(
+    ctx: OffscreenCanvasRenderingContext2D,
+    image: ImageBitmap,
+    x: number,
+    y: number,
+    size: number,
+    angle: number
+) {
+    ctx.save();
+
+    // Move to the center of where we want to draw
+    ctx.translate(x + size / 2, y + size / 2);
+
+    // Rotate by the steering angle (degrees to radians)
+    ctx.rotate((angle * Math.PI) / 180);
+
+    // Draw the image centered at the origin
+    ctx.drawImage(image, -size / 2, -size / 2, size, size);
+
+    ctx.restore();
+}
+
 export interface SpeedHistoryEntry {
     speed: number;     // Speed in the display unit (mph or kph)
     timeOffset: number; // Time offset in ms from start of export
@@ -12,7 +59,8 @@ export function drawOverlay(
     width: number,
     height: number,
     videoTimestamp: Date,
-    hideLocation: boolean = false
+    hideLocation: boolean = false,
+    steeringWheelImage: ImageBitmap | null = null
 ) {
     // Dynamic scaling based on video width (1920px is the reference)
     const baseWidth = 1920;
@@ -69,6 +117,40 @@ export function drawOverlay(
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.fillText(data.gear, gearX + gearSize / 2, centerY);
+
+        // ========== STEERING WHEEL (right of gear box) ==========
+        if (steeringWheelImage) {
+            const wheelX = gearX + gearSize + scaledValue(15);
+            const wheelSize = scaledValue(45);
+            const wheelCenterY = centerY;
+
+            // Draw background circle for the wheel
+            ctx.fillStyle = '#374151';
+            ctx.beginPath();
+            ctx.arc(wheelX + wheelSize / 2, wheelCenterY, wheelSize / 2 + scaledValue(3), 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw the rotating steering wheel
+            drawSteeringWheel(
+                ctx,
+                steeringWheelImage,
+                wheelX,
+                wheelCenterY - wheelSize / 2,
+                wheelSize,
+                sei.steeringWheelAngle
+            );
+
+            // Draw angle text below the wheel
+            ctx.font = `bold ${scaledValue(16)}px system-ui, sans-serif`;
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(
+                `${sei.steeringWheelAngle >= 0 ? '+' : ''}${sei.steeringWheelAngle.toFixed(0)}°`,
+                wheelX + wheelSize / 2,
+                wheelCenterY + wheelSize / 2 + scaledValue(4)
+            );
+        }
 
         // ========== RIGHT SECTION: GPS, FSD Status, Controls & Time ==========
         ctx.textAlign = 'right';
@@ -162,14 +244,16 @@ export function drawSpeedChart(
         return;
     }
 
-    // Chart dimensions - sized to fit in the scaled bottom bar
+    // Chart dimensions - optimized for maximum data visibility
     const chartWidth = scaledValue(170);
     const chartHeight = scaledValue(90);
+
+    // Minimal padding - maximize chart area
     const padding = {
-        top: scaledValue(14),
-        right: scaledValue(10),
-        bottom: scaledValue(18),
-        left: scaledValue(32)
+        top: scaledValue(4),
+        right: scaledValue(4),
+        bottom: scaledValue(4),
+        left: scaledValue(4)
     };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
@@ -186,20 +270,16 @@ export function drawSpeedChart(
     ctx.save();
     ctx.translate(chartX, chartY);
 
-    // Background with rounded corners - semi-transparent to blend with bar
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
+    // Background with rounded corners
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
     ctx.beginPath();
-    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(8));
+    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(6));
     ctx.fill();
 
     // Subtle border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.stroke();
-
-    // Chart area background
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
-    ctx.fillRect(padding.left, padding.top, innerWidth, innerHeight);
 
     // Calculate max speed for scaling (default to 80 mph / 130 kph)
     const defaultMax = speedUnit === 'mph' ? 80 : 130;
@@ -208,47 +288,17 @@ export function drawSpeedChart(
     // Time range is 10 seconds
     const timeRange = 10000;
 
-    // Grid lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    // Draw subtle grid lines (just a few horizontal)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
-
-    const gridLines = speedUnit === 'mph' ? [0, 20, 40, 60, 80] : [0, 30, 60, 90, 120];
-    gridLines.forEach(spd => {
+    const gridSpeeds = speedUnit === 'mph' ? [40, 80] : [60, 120];
+    gridSpeeds.forEach(spd => {
         const y = padding.top + innerHeight - (spd / maxSpeed) * innerHeight;
         ctx.beginPath();
         ctx.moveTo(padding.left, y);
         ctx.lineTo(chartWidth - padding.right, y);
         ctx.stroke();
     });
-
-    // Y-axis labels
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = `${scaledValue(11)}px system-ui, sans-serif`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    const labelSpeeds = speedUnit === 'mph' ? [0, 40, 80] : [0, 60, 120];
-    labelSpeeds.forEach(spd => {
-        const y = padding.top + innerHeight - (spd / maxSpeed) * innerHeight;
-        ctx.fillText(spd.toString(), padding.left - scaledValue(6), y);
-    });
-
-    // X-axis labels
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = `${scaledValue(10)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('10s', padding.left, chartHeight - scaledValue(12));
-    ctx.fillText('5s', padding.left + innerWidth / 2, chartHeight - scaledValue(12));
-    ctx.fillText('now', chartWidth - padding.right, chartHeight - scaledValue(12));
-
-    // Legend
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font = `bold ${scaledValue(12)}px system-ui, sans-serif`;
-    ctx.fillStyle = '#60a5fa'; // Blue for speed
-    ctx.fillRect(padding.left + scaledValue(30), scaledValue(5), scaledValue(10), scaledValue(10));
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.fillText(`Speed (${speedUnit})`, padding.left + scaledValue(45), scaledValue(11));
 
     // Draw speed data
     if (history.length >= 2) {
@@ -267,8 +317,8 @@ export function drawSpeedChart(
         if (visibleHistory.length >= 2) {
             // Draw filled area under the line
             const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + innerHeight);
-            gradient.addColorStop(0, 'rgba(34, 211, 238, 0.3)');
-            gradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
+            gradient.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
+            gradient.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
 
             ctx.beginPath();
             ctx.fillStyle = gradient;
@@ -289,10 +339,10 @@ export function drawSpeedChart(
             ctx.closePath();
             ctx.fill();
 
-            // Draw speed line (cyan)
+            // Draw speed line (cyan) - thicker for visibility
             ctx.beginPath();
             ctx.strokeStyle = '#22d3ee';
-            ctx.lineWidth = Math.max(1.5, scaledValue(2.5));
+            ctx.lineWidth = Math.max(2, scaledValue(3));
             let started = false;
             visibleHistory.forEach(p => {
                 const x = toCanvasX(p.timeOffset);
@@ -307,6 +357,21 @@ export function drawSpeedChart(
             ctx.stroke();
         }
     }
+
+    // Compact legend overlay (top-left corner, inside chart)
+    const legendPad = scaledValue(5);
+    ctx.font = `bold ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    // Semi-transparent background for legend
+    const legendText = `SPD ${speedUnit.toUpperCase()}`;
+    const textWidth = ctx.measureText(legendText).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(legendPad - 2, legendPad - 1, textWidth + 4, scaledValue(12) + 2);
+
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillText(legendText, legendPad, legendPad);
 
     // Restore context state
     ctx.restore();
@@ -336,14 +401,16 @@ export function drawPedalChart(
     // Don't draw if no slots available
     if (getChartSlotCount(videoWidth) === 0) return;
 
-    // Chart dimensions - consistent with other charts
+    // Chart dimensions - optimized for maximum data visibility
     const chartWidth = scaledValue(170);
     const chartHeight = scaledValue(90);
+
+    // Minimal padding - maximize chart area
     const padding = {
-        top: scaledValue(14),
-        right: scaledValue(10),
-        bottom: scaledValue(18),
-        left: scaledValue(10)
+        top: scaledValue(4),
+        right: scaledValue(4),
+        bottom: scaledValue(4),
+        left: scaledValue(4)
     };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
@@ -360,27 +427,14 @@ export function drawPedalChart(
     ctx.translate(chartX, chartY);
 
     // Background
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
     ctx.beginPath();
     ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(6));
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.stroke();
-
-    // Chart area
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
-    ctx.fillRect(padding.left, padding.top, innerWidth, innerHeight);
-
-    // X-axis labels
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = `${scaledValue(10)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('10s', padding.left, chartHeight - scaledValue(12));
-    ctx.fillText('5s', padding.left + innerWidth / 2, chartHeight - scaledValue(12));
-    ctx.fillText('now', chartWidth - padding.right, chartHeight - scaledValue(12));
 
     const timeRange = 10000; // 10 seconds
 
@@ -393,8 +447,8 @@ export function drawPedalChart(
             return chartWidth - padding.right - (age / timeRange) * innerWidth;
         };
 
-        // Draw brake zones (red background when braking)
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+        // Draw brake zones (red background when braking) - brighter
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
         let brakeStart: number | null = null;
         visibleHistory.forEach((p, i) => {
             const x = toCanvasX(p.timeOffset);
@@ -410,10 +464,10 @@ export function drawPedalChart(
             }
         });
 
-        // Draw throttle line (green)
+        // Draw throttle line (green) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = Math.max(1.5, scaledValue(2));
+        ctx.lineWidth = Math.max(2, scaledValue(3));
         let started = false;
         visibleHistory.forEach(p => {
             const x = toCanvasX(p.timeOffset);
@@ -428,19 +482,27 @@ export function drawPedalChart(
         ctx.stroke();
     }
 
-    // Legend
-    ctx.fillStyle = '#4ade80';
-    ctx.fillRect(padding.left + scaledValue(4), scaledValue(4), scaledValue(10), scaledValue(10));
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = `bold ${scaledValue(12)}px system-ui, sans-serif`;
+    // Compact legend overlay (top-left corner, inside chart)
+    const legendPad = scaledValue(5);
+    ctx.font = `bold ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Thr', padding.left + scaledValue(20), scaledValue(11));
+    ctx.textBaseline = 'top';
 
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-    ctx.fillRect(chartWidth / 2 + scaledValue(10), scaledValue(5), scaledValue(10), scaledValue(10));
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.fillText('Brk', chartWidth / 2 + scaledValue(25), scaledValue(11));
+    // Semi-transparent background for legend
+    const legendText = 'THR / BRK';
+    const textWidth = ctx.measureText(legendText).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(legendPad - 2, legendPad - 1, textWidth + 4, scaledValue(12) + 2);
+
+    // Draw legend with colors
+    ctx.fillStyle = '#4ade80';
+    ctx.fillText('THR', legendPad, legendPad);
+    const thrWidth = ctx.measureText('THR').width;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillText(' / ', legendPad + thrWidth, legendPad);
+    const slashWidth = ctx.measureText(' / ').width;
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('BRK', legendPad + thrWidth + slashWidth, legendPad);
 
     ctx.restore();
 }
@@ -470,14 +532,16 @@ export function drawAccelChart(
     // Don't draw if no slots available
     if (getChartSlotCount(videoWidth) === 0) return;
 
-    // Chart dimensions - consistent with other charts
+    // Chart dimensions - optimized for maximum data visibility
     const chartWidth = scaledValue(170);
     const chartHeight = scaledValue(90);
+
+    // Minimal padding - maximize chart area
     const padding = {
-        top: scaledValue(14),
-        right: scaledValue(10),
-        bottom: scaledValue(18),
-        left: scaledValue(24)
+        top: scaledValue(4),
+        right: scaledValue(4),
+        bottom: scaledValue(4),
+        left: scaledValue(4)
     };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
@@ -494,48 +558,26 @@ export function drawAccelChart(
     ctx.translate(chartX, chartY);
 
     // Background
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
     ctx.beginPath();
     ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(6));
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.stroke();
-
-    // Chart area
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
-    ctx.fillRect(padding.left, padding.top, innerWidth, innerHeight);
-
-    // X-axis labels
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = `${scaledValue(10)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('10s', padding.left, chartHeight - scaledValue(12));
-    ctx.fillText('5s', padding.left + innerWidth / 2, chartHeight - scaledValue(12));
-    ctx.fillText('now', chartWidth - padding.right, chartHeight - scaledValue(12));
 
     const timeRange = 10000;
     const maxG = 1.0;
     const zeroY = padding.top + innerHeight / 2;
 
-    // Zero line
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    // Zero line (kept for reference, thicker)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padding.left, zeroY);
     ctx.lineTo(chartWidth - padding.right, zeroY);
     ctx.stroke();
-
-    // Y-axis labels
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = `${scaledValue(10)}px system-ui, sans-serif`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('+1G', padding.left - scaledValue(6), padding.top + scaledValue(2));
-    ctx.fillText('0G', padding.left - scaledValue(6), zeroY);
-    ctx.fillText('-1G', padding.left - scaledValue(6), chartHeight - padding.bottom - scaledValue(2));
 
     const visibleHistory = history.filter(p => currentTimeMs - p.timeOffset <= timeRange);
 
@@ -550,10 +592,10 @@ export function drawAccelChart(
             return zeroY - (clamped / maxG) * (innerHeight / 2);
         };
 
-        // Draw longitudinal G (red)
+        // Draw longitudinal G (red) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = Math.max(1.5, scaledValue(2));
+        ctx.lineWidth = Math.max(2, scaledValue(3));
         let started = false;
         visibleHistory.forEach(p => {
             const x = toCanvasX(p.timeOffset);
@@ -567,10 +609,10 @@ export function drawAccelChart(
         });
         ctx.stroke();
 
-        // Draw lateral G (blue)
+        // Draw lateral G (blue) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = Math.max(1.5, scaledValue(2));
+        ctx.lineWidth = Math.max(2, scaledValue(3));
         started = false;
         visibleHistory.forEach(p => {
             const x = toCanvasX(p.timeOffset);
@@ -585,19 +627,27 @@ export function drawAccelChart(
         ctx.stroke();
     }
 
-    // Legend
-    ctx.fillStyle = '#f87171';
-    ctx.fillRect(padding.left + scaledValue(30), scaledValue(5), scaledValue(10), scaledValue(10));
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = `bold ${scaledValue(12)}px system-ui, sans-serif`;
+    // Compact legend overlay (top-left corner, inside chart)
+    const legendPad = scaledValue(5);
+    ctx.font = `bold ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Lng', padding.left + scaledValue(45), scaledValue(11));
+    ctx.textBaseline = 'top';
 
+    // Semi-transparent background for legend
+    const legendText = 'LNG / LAT';
+    const textWidth = ctx.measureText(legendText).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(legendPad - 2, legendPad - 1, textWidth + 4, scaledValue(12) + 2);
+
+    // Draw legend with colors
+    ctx.fillStyle = '#f87171';
+    ctx.fillText('LNG', legendPad, legendPad);
+    const lngWidth = ctx.measureText('LNG').width;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillText(' / ', legendPad + lngWidth, legendPad);
+    const slashWidth = ctx.measureText(' / ').width;
     ctx.fillStyle = '#60a5fa';
-    ctx.fillRect(chartWidth / 2 + scaledValue(10), scaledValue(5), scaledValue(10), scaledValue(10));
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.fillText('Lat', chartWidth / 2 + scaledValue(25), scaledValue(11));
+    ctx.fillText('LAT', legendPad + lngWidth + slashWidth, legendPad);
 
     ctx.restore();
 }
