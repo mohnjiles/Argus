@@ -14,7 +14,9 @@
   padding: 0;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
 }
@@ -127,7 +129,7 @@ input[type="range"]::-moz-range-thumb {
   overflow: hidden;
 }
 
-.react-grid-layout .react-grid-item > div {
+.react-grid-layout .react-grid-item>div {
   width: 100% !important;
   height: 100% !important;
 }
@@ -144,11 +146,26 @@ input[type="range"]::-moz-range-thumb {
 .react-grid-item.react-draggable-dragging {
   transition: none;
   z-index: 100;
-  box-shadow: 0 0 0 2px var(--tesla-red), 0 10px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 2px var(--tesla-red), 0 10px 40px rgba(0, 0, 0, 0.5);
   cursor: grabbing !important;
 }
+
 
 .react-grid-item:hover {
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
 }
 
+/* Fix for Leaflet tile grid lines/gaps (hairlines) */
+.leaflet-container .leaflet-tile {
+  outline: 1px solid transparent;
+}
+
+.leaflet-tile-container {
+  /* This scale trick often fixes hairlines better than margins */
+  transform: scale(1.001);
+}
+
+/* Ensure tiles blend smoothly */
+.leaflet-tile-container {
+  will-change: transform;
+}

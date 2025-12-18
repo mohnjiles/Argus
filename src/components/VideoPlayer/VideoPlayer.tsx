@@ -43,14 +43,14 @@ interface VideoPlayerProps {
 // Create dynamic layout based on visible cameras
 function createLayout(visibleCameras: CameraAngle[]): GridLayout.Layout[] {
   const count = visibleCameras.length;
-  
+
   if (count === 0) return [];
-  
+
   // Single camera - full screen
   if (count === 1) {
     return [{ i: visibleCameras[0], x: 0, y: 0, w: 12, h: 12, minW: 12, maxW: 12, minH: 12, maxH: 12 }];
   }
-  
+
   // Two cameras - side by side
   if (count === 2) {
     return [
@@ -58,7 +58,7 @@ function createLayout(visibleCameras: CameraAngle[]): GridLayout.Layout[] {
       { i: visibleCameras[1], x: 6, y: 0, w: 6, h: 12, minW: 6, maxW: 6, minH: 12, maxH: 12 },
     ];
   }
-  
+
   // Three cameras - one large on left, two stacked on right
   if (count === 3) {
     return [
@@ -67,7 +67,7 @@ function createLayout(visibleCameras: CameraAngle[]): GridLayout.Layout[] {
       { i: visibleCameras[2], x: 8, y: 6, w: 4, h: 6, minW: 4, maxW: 4, minH: 6, maxH: 6 },
     ];
   }
-  
+
   // Four cameras - 2x2 grid
   if (count === 4) {
     return [
@@ -77,7 +77,7 @@ function createLayout(visibleCameras: CameraAngle[]): GridLayout.Layout[] {
       { i: visibleCameras[3], x: 6, y: 6, w: 6, h: 6, minW: 6, maxW: 6, minH: 6, maxH: 6 },
     ];
   }
-  
+
   // Five cameras - two on top, three on bottom
   if (count === 5) {
     return [
@@ -97,7 +97,7 @@ function createLayout(visibleCameras: CameraAngle[]): GridLayout.Layout[] {
     back: { x: 4, y: 6 },
     right_repeater: { x: 8, y: 6 },
   };
-  
+
   return visibleCameras.map((camera) => ({
     i: camera,
     x: cameraOrder[camera]?.x ?? 0,
@@ -204,7 +204,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }, [clip]);
 
   // Get available cameras from current clip
-  const availableCameras = clip 
+  const availableCameras = clip
     ? CAMERA_ANGLES.filter(cam => clip.cameras.has(cam))
     : [];
 
@@ -322,7 +322,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           {CAMERA_ANGLES.map((camera) => {
             const isAvailable = availableCameras.includes(camera);
             const isVisible = visibleCameras.has(camera);
-            
+
             return (
               <button
                 key={camera}
@@ -330,8 +330,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                 disabled={!isAvailable}
                 className={`
                   px-3 py-1.5 rounded-lg text-xs font-medium transition-all
-                  ${!isAvailable 
-                    ? 'opacity-30 cursor-not-allowed bg-gray-800 text-gray-500' 
+                  ${!isAvailable
+                    ? 'opacity-30 cursor-not-allowed bg-gray-800 text-gray-500'
                     : isVisible
                       ? 'bg-tesla-red text-white'
                       : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -347,8 +347,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       </div>
 
       {/* Video Grid */}
-      <div 
-        ref={containerRef} 
+      <div
+        ref={containerRef}
         className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden"
       >
         {activeVisibleCameras.length === 0 ? (
@@ -373,7 +373,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             rowHeight={rowHeight}
             width={containerSize.width}
             onDragStop={handleDragStop}
-            isDraggable={true}
+            isDraggable={false}
             isResizable={false}
             compactType={null}
             preventCollision={false}
@@ -385,11 +385,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               const camera = item.i as CameraAngle;
               const cameraFile = clip.cameras.get(camera);
               const isPrimary = index === 0;
-              
+
               return (
-                <div 
-                  key={camera} 
-                  className="bg-gray-900 rounded-lg overflow-hidden cursor-move"
+                <div
+                  key={camera}
+                  className="bg-gray-900 rounded-lg overflow-hidden"
                   style={{ width: '100%', height: '100%' }}
                 >
                   <CameraView
@@ -398,6 +398,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                     file={cameraFile?.file || null}
                     isPlaying={isPlaying}
                     playbackSpeed={playbackSpeed}
+                    initialTime={currentTime}
                     onSeiData={isPrimary ? setLocalSeiData : undefined}
                     onDurationChange={isPrimary ? handleDurationChange : undefined}
                     onTimeUpdate={isPrimary ? handleTimeUpdate : undefined}
@@ -415,13 +416,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
         {/* SEI Overlay */}
         {showOverlay && localSeiData && (
-          <div 
-            className={`absolute z-20 pointer-events-none ${
-              overlayPosition === 'top-left' ? 'top-4 left-4' :
+          <div
+            className={`absolute z-20 pointer-events-none ${overlayPosition === 'top-left' ? 'top-4 left-4' :
               overlayPosition === 'top-right' ? 'top-4 right-4' :
-              overlayPosition === 'bottom-right' ? 'bottom-4 right-4' :
-              'bottom-4 left-4' // default bottom-left
-            }`}
+                overlayPosition === 'bottom-right' ? 'bottom-4 right-4' :
+                  'bottom-4 left-4' // default bottom-left
+              }`}
           >
             <SeiOverlay data={localSeiData} speedUnit={speedUnit} position={overlayPosition} />
           </div>
@@ -429,13 +429,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
         {/* G-Force Overlays - horizontal layout, positioned to minimize video blocking */}
         {showOverlay && localSeiData && (showGMeter || showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
-          <div 
-            className={`absolute z-20 pointer-events-none flex gap-2 items-start ${
-              overlayPosition === 'top-left' ? 'top-4 right-4' :
+          <div
+            className={`absolute z-20 pointer-events-none flex gap-2 items-start ${overlayPosition === 'top-left' ? 'top-4 right-4' :
               overlayPosition === 'top-right' ? 'top-4 left-4' :
-              overlayPosition === 'bottom-right' ? 'bottom-4 left-4 items-end' :
-              'bottom-4 right-4 items-end' // opposite of default bottom-left
-            }`}
+                overlayPosition === 'bottom-right' ? 'bottom-4 left-4 items-end' :
+                  'bottom-4 right-4 items-end' // opposite of default bottom-left
+              }`}
           >
             {/* G-Meter on the left - align to top of container */}
             {showGMeter && (
@@ -443,7 +442,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                 <GMeter data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />
               </div>
             )}
-            
+
             {/* Charts stacked vertically on the right */}
             {(showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
               <div className="flex flex-col gap-2">

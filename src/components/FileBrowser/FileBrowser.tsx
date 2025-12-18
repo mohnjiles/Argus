@@ -4,8 +4,8 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { VideoEvent, ClipGroup, CameraAngle, ClipSource } from '../../types';
-import { CAMERA_LABELS, formatDuration, formatEventReason, formatEventCamera } from '../../types';
+import type { VideoEvent, ClipGroup, ClipSource } from '../../types';
+import { formatEventReason, formatEventCamera } from '../../types';
 import { groupEventsByDate, getSourceStyle, formatEventDuration } from '../../lib/file-scanner';
 
 interface FileBrowserProps {
@@ -134,7 +134,7 @@ export function FileBrowser({
       </div>
 
       {/* Event List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto border-b border-gray-800/50">
         {Array.from(groupedEvents.entries()).map(([date, dateEvents]) => (
           <div key={date} className="border-b border-gray-800/50">
             {/* Date Header */}
@@ -159,6 +159,27 @@ export function FileBrowser({
           </div>
         ))}
       </div>
+
+      {/* Support Footer */}
+      <div className="flex-shrink-0 px-4 py-4 bg-black/20 backdrop-blur-sm border-t border-gray-800/50">
+        <a
+          href="https://ko-fi.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative flex  gap-3 w-full px-4 py-3 bg-gradient-to-r from-tesla-red/10 to-tesla-red/5 border border-tesla-red/30 rounded-xl hover:translate-y-[-2px] hover:shadow-[0_4px_12px_rgba(232,33,39,0.2)] transition-all duration-300"
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-tesla-red text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-xs font-bold text-white tracking-wide uppercase">Support Argus</span>
+            <span className="text-[10px] text-gray-400 font-medium group-hover:text-gray-300 transition-colors">Buy me a coffee</span>
+          </div>
+          <div className="absolute top-0 left-0 w-full h-full bg-white/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity" />
+        </a>
+      </div>
     </div>
   );
 }
@@ -172,13 +193,13 @@ interface EventItemProps {
   onSelectEvent: (event: VideoEvent, clipIndex?: number) => void;
 }
 
-function EventItem({ 
-  event, 
-  isSelected, 
+function EventItem({
+  event,
+  isSelected,
   selectedClipIndex,
-  isExpanded, 
-  onToggleExpand, 
-  onSelectEvent 
+  isExpanded,
+  onToggleExpand,
+  onSelectEvent
 }: EventItemProps) {
   const sourceStyle = getSourceStyle(event.source);
   const hasMultipleClips = event.clips.length > 1;
@@ -186,8 +207,8 @@ function EventItem({
   return (
     <div className={`
       rounded-lg overflow-hidden transition-colors
-      ${isSelected 
-        ? 'bg-tesla-red/10 ring-1 ring-tesla-red/30' 
+      ${isSelected
+        ? 'bg-tesla-red/10 ring-1 ring-tesla-red/30'
         : 'hover:bg-gray-800/30'
       }
     `}>
@@ -200,9 +221,9 @@ function EventItem({
           {/* Thumbnail */}
           <div className="flex-shrink-0 w-16 h-12 rounded bg-gray-800 overflow-hidden">
             {event.thumbnailUrl ? (
-              <img 
-                src={event.thumbnailUrl} 
-                alt="Thumbnail" 
+              <img
+                src={event.thumbnailUrl}
+                alt="Thumbnail"
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -223,11 +244,11 @@ function EventItem({
 
             {/* Source badge + duration */}
             <div className="flex items-center gap-2 mb-1">
-              <span 
+              <span
                 className="text-xs px-1.5 py-0.5 rounded"
-                style={{ 
+                style={{
                   backgroundColor: `${sourceStyle.color}20`,
-                  color: sourceStyle.color 
+                  color: sourceStyle.color
                 }}
               >
                 {sourceStyle.label}
@@ -266,10 +287,10 @@ function EventItem({
               }}
               className="flex-shrink-0 p-1 rounded hover:bg-gray-700/50 transition-colors"
             >
-              <svg 
-                className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -308,14 +329,14 @@ interface ClipItemProps {
 
 function ClipItem({ clip, index, isSelected, onClick }: ClipItemProps) {
   const cameraCount = clip.cameras.size;
-  
+
   return (
     <button
       onClick={onClick}
       className={`
         w-full text-left p-2 rounded transition-colors flex items-center gap-2
-        ${isSelected 
-          ? 'bg-tesla-red/20 text-white' 
+        ${isSelected
+          ? 'bg-tesla-red/20 text-white'
           : 'hover:bg-gray-800/50 text-gray-400'
         }
       `}
@@ -345,14 +366,14 @@ interface FilterButtonProps {
 
 function FilterButton({ active, onClick, count, label, color }: FilterButtonProps) {
   if (count === 0) return null;
-  
+
   return (
     <button
       onClick={onClick}
       className={`
         px-2 py-1 rounded text-xs font-medium transition-all
-        ${active 
-          ? 'text-white' 
+        ${active
+          ? 'text-white'
           : 'text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-700/50'
         }
       `}

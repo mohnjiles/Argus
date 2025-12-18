@@ -6,17 +6,28 @@
 import { useEffect, useRef } from 'react';
 import type { PlaybackController } from './usePlayback';
 
-export function useKeyboardShortcuts(playback: PlaybackController) {
-  const playbackRef = useRef(playback);
+export interface KeyboardShortcutOptions {
+  onSeek?: (time: number) => void;
+  onJumpToEvent?: () => void;
+}
 
-  // Keep a stable ref so we don't re-register listeners on every render.
+export function useKeyboardShortcuts(playback: PlaybackController, options?: KeyboardShortcutOptions) {
+  const playbackRef = useRef(playback);
+  const optionsRef = useRef(options);
+
+  // Keep stable refs so we don't re-register listeners on every render.
   useEffect(() => {
     playbackRef.current = playback;
   }, [playback]);
 
   useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const pb = playbackRef.current;
+      const opts = optionsRef.current;
 
       // Ignore if user is typing in an input
       if (
@@ -26,6 +37,8 @@ export function useKeyboardShortcuts(playback: PlaybackController) {
       ) {
         return;
       }
+
+      const seek = opts?.onSeek || pb.seek;
 
       switch (e.key) {
         case ' ':
@@ -38,26 +51,26 @@ export function useKeyboardShortcuts(playback: PlaybackController) {
           break;
         case 'j':
           e.preventDefault();
-          pb.seek(Math.max(pb.currentTime - 10, 0));
+          seek(Math.max(pb.currentTime - 10, 0));
           break;
         case 'l':
           e.preventDefault();
-          pb.seek(Math.min(pb.currentTime + 10, pb.duration));
+          seek(Math.min(pb.currentTime + 10, pb.duration));
           break;
         case 'ArrowLeft':
           e.preventDefault();
           if (e.shiftKey) {
-            pb.seek(Math.max(pb.currentTime - 5, 0));
+            seek(Math.max(pb.currentTime - 5, 0));
           } else {
-            pb.seek(Math.max(pb.currentTime - 1, 0));
+            seek(Math.max(pb.currentTime - 1, 0));
           }
           break;
         case 'ArrowRight':
           e.preventDefault();
           if (e.shiftKey) {
-            pb.seek(Math.min(pb.currentTime + 5, pb.duration));
+            seek(Math.min(pb.currentTime + 5, pb.duration));
           } else {
-            pb.seek(Math.min(pb.currentTime + 1, pb.duration));
+            seek(Math.min(pb.currentTime + 1, pb.duration));
           }
           break;
         case 'ArrowUp':
@@ -70,11 +83,11 @@ export function useKeyboardShortcuts(playback: PlaybackController) {
           break;
         case 'Home':
           e.preventDefault();
-          pb.seek(0);
+          seek(0);
           break;
         case 'End':
           e.preventDefault();
-          pb.seek(pb.duration);
+          seek(pb.duration);
           break;
         case '0':
         case '1':
@@ -88,7 +101,7 @@ export function useKeyboardShortcuts(playback: PlaybackController) {
         case '9':
           e.preventDefault();
           const fraction = parseInt(e.key) / 10;
-          pb.seek(pb.duration * fraction);
+          seek(pb.duration * fraction);
           break;
         case 'n':
         case 'N':
@@ -103,7 +116,31 @@ export function useKeyboardShortcuts(playback: PlaybackController) {
         case 'e':
         case 'E':
           e.preventDefault();
-          pb.jumpToEvent();
+          if (opts?.onJumpToEvent) {
+            opts.onJumpToEvent();
+          } else {
+            pb.jumpToEvent();
+          }
+          break;
+        case ',':
+        case '<':
+          e.preventDefault();
+          if (pb.stepFrame) {
+            pb.stepFrame(-1);
+          } else {
+            // Fallback for older interface
+            seek(Math.max(pb.currentTime - 0.033, 0));
+          }
+          break;
+        case '.':
+        case '>':
+          e.preventDefault();
+          if (pb.stepFrame) {
+            pb.stepFrame(1);
+          } else {
+            // Fallback
+            seek(Math.min(pb.currentTime + 0.033, pb.duration));
+          }
           break;
       }
     };

@@ -4,11 +4,11 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { FileSystemState, VideoEvent } from '../types';
-import { 
-  openDirectoryPicker, 
-  scanDirectory, 
-  isFileSystemAccessSupported 
+import type { FileSystemState } from '../types';
+import {
+  openDirectoryPicker,
+  scanDirectory,
+  isFileSystemAccessSupported
 } from '../lib/file-scanner';
 
 export function useFileSystem() {

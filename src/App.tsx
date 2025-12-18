@@ -17,13 +17,10 @@ function App() {
   const fileSystem = useFileSystem()
   const playback = usePlayback()
   const { settings, setSpeedUnit, setOverlayPosition, setShowOverlay, setShowGMeter, setShowAccelChart, setShowPedalChart, setShowSpeedChart, setShowAccelDebug, resetSettings } = useSettings()
-  
+
   // Ref to VideoPlayer for seeking
   const videoPlayerRef = useRef<VideoPlayerHandle>(null)
   
-  // Keyboard shortcuts
-  useKeyboardShortcuts(playback)
-
   // Handle time updates from primary video
   const handleTimeUpdate = useCallback((time: number) => {
     playback.setCurrentTime(time)
@@ -95,6 +92,12 @@ function App() {
       }
     }
   }, [playback, handleSeek])
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts(playback, {
+    onSeek: handleSeek,
+    onJumpToEvent: handleJumpToEvent,
+  })
 
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a]">
@@ -227,6 +230,10 @@ function App() {
           clip={playback.currentClip}
           duration={playback.duration}
           currentTime={playback.currentTime}
+          event={playback.currentEvent ?? undefined}
+          totalTime={playback.totalTime}
+          totalDuration={playback.totalDuration}
+          clipDurations={playback.clipDurations}
           onClose={() => setShowExportDialog(false)}
         />
       )}

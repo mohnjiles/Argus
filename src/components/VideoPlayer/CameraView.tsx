@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardR
 import type { CameraAngle, SeiMetadata } from '../../types';
 import { CAMERA_LABELS } from '../../types';
 import { DashcamMP4 } from '../../lib/dashcam-mp4';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 export interface CameraViewHandle {
   play: () => void;
@@ -20,6 +21,7 @@ interface CameraViewProps {
   file: File | null;
   isPlaying: boolean;
   playbackSpeed: number;
+  initialTime?: number;
   onSeiData?: (sei: SeiMetadata | null) => void;
   onDurationChange?: (duration: number) => void;
   onTimeUpdate?: (time: number) => void;
@@ -31,6 +33,7 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
   file,
   isPlaying,
   playbackSpeed,
+  initialTime = 0,
   onSeiData,
   onDurationChange,
   onTimeUpdate,
@@ -41,19 +44,20 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
   const seiDataRef = useRef<(SeiMetadata | null)[]>([]);
   const frameStartsRef = useRef<number[]>([]);
   const lastSeiIndexRef = useRef<number>(-1);
-  
+  const initialTimeAppliedRef = useRef<boolean>(false);
+
   // Store callbacks in refs to avoid triggering effect re-runs
   const onDurationChangeRef = useRef(onDurationChange);
   const onSeiDataRef = useRef(onSeiData);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const onEndedRef = useRef(onEnded);
-  
+
   // Keep refs up to date
   useEffect(() => { onDurationChangeRef.current = onDurationChange; }, [onDurationChange]);
   useEffect(() => { onSeiDataRef.current = onSeiData; }, [onSeiData]);
   useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
   useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
-  
+
   // State
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +66,7 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
   // Expose imperative handle for parent control
   useImperativeHandle(ref, () => ({
     play: () => {
-      videoRef.current?.play().catch(() => {});
+      videoRef.current?.play().catch(() => { });
     },
     pause: () => {
       videoRef.current?.pause();
@@ -90,6 +94,7 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
       seiDataRef.current = [];
       frameStartsRef.current = [];
       lastSeiIndexRef.current = -1;
+      initialTimeAppliedRef.current = false;
       setError(null);
       setIsVideoReady(false);
       return;
@@ -102,6 +107,7 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
       setIsLoading(true);
       setError(null);
       setIsVideoReady(false);
+      initialTimeAppliedRef.current = false;
       cleanupBlobUrl();
 
       try {
@@ -133,7 +139,7 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
 
         // Store SEI data for each frame (preserving null for frames without SEI)
         seiDataRef.current = frames.map(f => f.sei ?? null);
-        
+
         // Precompute frame start times for SEI sync
         const starts: number[] = [];
         let t = 0;
@@ -221,7 +227,7 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
         if (starts[mid] <= currentTime) lo = mid;
         else hi = mid - 1;
       }
-      
+
       if (lo !== lastSeiIndexRef.current) {
         lastSeiIndexRef.current = lo;
         const sei = seiDataRef.current[lo];
@@ -249,10 +255,11 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
   // Handle video metadata loaded
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
-    if (video) {
-      video.currentTime = 0;
+    if (video && !initialTimeAppliedRef.current) {
+      video.currentTime = initialTime;
+      initialTimeAppliedRef.current = true;
     }
-  }, []);
+  }, [initialTime]);
 
   // Handle video errors
   const handleError = useCallback(() => {
@@ -302,20 +309,33 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
       )}
 
       {/* Native Video Element - THE KEY TO SMOOTH PLAYBACK */}
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain pointer-events-none"
-        muted
-        playsInline
-        preload="auto"
-        onLoadedMetadata={handleLoadedMetadata}
-        onLoadedData={handleLoadedData}
-        onCanPlay={handleCanPlay}
-        onTimeUpdate={handleTimeUpdate}
-        onEnded={handleEnded}
-        onError={handleError}
-        style={{ display: file ? 'block' : 'none' }}
-      />
+      <TransformWrapper
+        initialScale={1}
+        minScale={1}
+        maxScale={8}
+        centerOnInit={true}
+        wheel={{ step: 0.2 }}
+      >
+        <TransformComponent
+          wrapperStyle={{ width: '100%', height: '100%' }}
+          contentStyle={{ width: '100%', height: '100%' }}
+        >
+          <video
+            ref={videoRef}
+            className="w-full h-full object-contain pointer-events-none"
+            muted
+            playsInline
+            preload="auto"
+            onLoadedMetadata={handleLoadedMetadata}
+            onLoadedData={handleLoadedData}
+            onCanPlay={handleCanPlay}
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={handleEnded}
+            onError={handleError}
+            style={{ display: file ? 'block' : 'none' }}
+          />
+        </TransformComponent>
+      </TransformWrapper>
     </div>
   );
 });

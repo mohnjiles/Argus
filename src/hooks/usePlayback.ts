@@ -17,15 +17,16 @@ export interface PlaybackController {
   totalTime: number; // Time across entire event
   duration: number; // Duration of current clip
   totalDuration: number; // Total duration of event
+  clipDurations: number[]; // Durations of each clip in event
   playbackSpeed: number;
   visibleCameras: Set<CameraAngle>;
   currentSeiData: SeiMetadata | null;
   currentFrameIndex: number;
-  
+
   // Event marker info (for Sentry events)
   eventClipIndex: number | undefined;
   eventTimeOffset: number | undefined;
-  
+
   // Actions
   loadEvent: (event: VideoEvent, clipIndex?: number) => void;
   unloadEvent: () => void;
@@ -40,6 +41,7 @@ export interface PlaybackController {
   prevClip: () => boolean;
   seekToFrame: (frameIndex: number) => void;
   jump: (seconds: number) => void;
+  stepFrame: (direction: 1 | -1) => void;
   setPlaybackSpeed: (speed: number) => void;
   toggleCamera: (camera: CameraAngle) => void;
   setCameraVisible: (camera: CameraAngle, visible: boolean) => void;
@@ -66,14 +68,47 @@ export function usePlayback(): PlaybackController {
 
   // Derived state
   const currentClip = currentEvent?.clips[currentClipIndex] ?? null;
-  
+
+  // Calculate smart per-clip estimate for unknown durations
+  // Distributes remaining time across unknown clips for consistency
+  const getEstimatePerClip = () => {
+    if (!currentEvent) return 60;
+
+    let knownSum = 0;
+    let unknownCount = 0;
+    for (let i = 0; i < currentEvent.clips.length; i++) {
+      if (clipDurations[i] && clipDurations[i] > 0) {
+        knownSum += clipDurations[i];
+      } else {
+        unknownCount++;
+      }
+    }
+
+    if (unknownCount === 0) return 60;
+    const remainingDuration = Math.max(0, currentEvent.totalDuration - knownSum);
+    return remainingDuration / unknownCount;
+  };
+
+  const estimatePerClip = getEstimatePerClip();
+
   // Calculate total time across event (sum of previous clip durations + current time)
-  const totalTime = clipDurations.slice(0, currentClipIndex).reduce((a, b) => a + b, 0) + currentTime;
-  
-  // Total duration is sum of all clip durations (or estimate)
-  const totalDuration = clipDurations.length > 0 
-    ? clipDurations.reduce((a, b) => a + b, 0)
-    : (currentEvent?.totalDuration ?? 0);
+  const totalTime = (() => {
+    let cumulative = 0;
+    for (let i = 0; i < currentClipIndex; i++) {
+      cumulative += (clipDurations[i] && clipDurations[i] > 0) ? clipDurations[i] : estimatePerClip;
+    }
+    return cumulative + currentTime;
+  })();
+
+  // Total duration: sum known durations + estimate for unknown
+  const totalDuration = (() => {
+    if (!currentEvent) return 0;
+    let sum = 0;
+    for (let i = 0; i < currentEvent.clips.length; i++) {
+      sum += (clipDurations[i] && clipDurations[i] > 0) ? clipDurations[i] : estimatePerClip;
+    }
+    return sum;
+  })();
 
   const loadEvent = useCallback((event: VideoEvent, clipIndex: number = 0) => {
     setIsPlaying(false);
@@ -84,7 +119,7 @@ export function usePlayback(): PlaybackController {
     setCurrentSeiData(null);
     setDuration(0);
     setClipDurations([]); // Will be populated as clips load
-    
+
     // Enable all available cameras by default (from first clip)
     const firstClip = event.clips[0];
     if (firstClip) {
@@ -157,7 +192,9 @@ export function usePlayback(): PlaybackController {
   const nextClip = useCallback((): boolean => {
     if (!currentEvent) return false;
     if (currentClipIndex >= currentEvent.clips.length - 1) return false;
-    
+
+    // Clear SEI data immediately to prevent stale GPS position
+    setCurrentSeiData(null);
     setCurrentClipIndex(prev => prev + 1);
     setCurrentTime(0);
     setDuration(0);
@@ -167,7 +204,9 @@ export function usePlayback(): PlaybackController {
   const prevClip = useCallback((): boolean => {
     if (!currentEvent) return false;
     if (currentClipIndex <= 0) return false;
-    
+
+    // Clear SEI data immediately to prevent stale GPS position
+    setCurrentSeiData(null);
     setCurrentClipIndex(prev => prev - 1);
     setCurrentTime(0);
     setDuration(0);
@@ -177,7 +216,7 @@ export function usePlayback(): PlaybackController {
   // Called when a clip ends - auto-advance to next
   const onClipEnded = useCallback(() => {
     if (!currentEvent) return;
-    
+
     const hasNext = nextClip();
     if (!hasNext) {
       // No more clips, stop at end
@@ -201,6 +240,20 @@ export function usePlayback(): PlaybackController {
   const setPlaybackSpeed = useCallback((speed: number) => {
     setPlaybackSpeedState(speed);
   }, []);
+
+  const stepFrame = useCallback((direction: 1 | -1) => {
+    if (isPlaying) pause();
+
+    // Assume 30fps = ~33ms per frame
+    const frameDuration = 1 / 30; // seconds
+
+    // If we have precise frame data, we could be smarter here,
+    // but fixed step is usually sufficient for visual inspection.
+    setCurrentTime(prev => {
+      const newTime = prev + (direction * frameDuration);
+      return Math.max(0, Math.min(newTime, duration));
+    });
+  }, [isPlaying, pause, duration]);
 
   const toggleCamera = useCallback((camera: CameraAngle) => {
     setVisibleCameras(prev => {
@@ -263,15 +316,16 @@ export function usePlayback(): PlaybackController {
     totalTime,
     duration,
     totalDuration,
+    clipDurations,
     playbackSpeed,
     visibleCameras,
     currentSeiData,
     currentFrameIndex,
-    
+
     // Event marker info
     eventClipIndex: currentEvent?.eventClipIndex,
     eventTimeOffset: currentEvent?.eventTimeOffset,
-    
+
     loadEvent,
     unloadEvent,
     togglePlayPause,
@@ -285,6 +339,7 @@ export function usePlayback(): PlaybackController {
     prevClip,
     seekToFrame,
     jump,
+    stepFrame,
     setPlaybackSpeed,
     toggleCamera,
     setCameraVisible,
