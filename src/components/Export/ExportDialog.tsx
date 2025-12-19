@@ -762,46 +762,48 @@ export function ExportDialog({
           </div>
 
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-700 bg-[#1a1a1a]">
-            {isExporting ? (
-              <div className="space-y-2 animate-fade-in">
-                <div className="flex justify-between text-sm font-medium text-white mb-1">
-                  <span>Exporting Video...</span>
-                  <span>{Math.round(progress * 100)}%</span>
-                </div>
-                <div className="h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner">
-                  <div
-                    className="h-full bg-gradient-to-r from-tesla-red to-red-600 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(232,33,39,0.5)]"
-                    style={{ width: `${progress * 100}%` }}
-                  />
-                </div>
-                <p className="text-center text-xs text-gray-500 mt-2">Please wait while we process your video</p>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-700 bg-[#1a1a1a]">
+          {isExporting ? (
+            <div className="space-y-2 animate-fade-in">
+              <div className="flex justify-between text-sm font-medium text-white mb-1">
+                <span>Exporting Video...</span>
+                <span>{Math.round(progress * 100)}%</span>
               </div>
-            ) : (
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={onClose}
-                  disabled={isExporting}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleExport}
-                  disabled={isExporting || selectedCameras.length === 0}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-tesla-red text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  <span>Export Video</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </button>
+              <div className="h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner">
+                <div
+                  className="h-full bg-gradient-to-r from-tesla-red to-red-600 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(232,33,39,0.5)]"
+                  style={{ width: `${progress * 100}%` }}
+                />
               </div>
-            )}
-          </div>
+              <p className="text-center text-xs text-gray-500 mt-2">Please wait while we process your video</p>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={onClose}
+                disabled={isExporting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={isExporting || selectedCameras.length === 0}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-tesla-red text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <span>Export Video</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      );
+    </div>
+  );
 }
 
