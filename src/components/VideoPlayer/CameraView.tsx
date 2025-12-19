@@ -202,6 +202,18 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
     return () => cancelAnimationFrame(rafId);
   }, [isPlaying, isVideoReady]);
 
+  // Handle time synchronization when paused (for frame stepping)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isPlaying || !isVideoReady) return;
+
+    // Only sync if the difference is significant (to avoid seek jitter)
+    // 0.001s is enough to detect a deliberate state change from the seek bar or hotkeys
+    if (Math.abs(video.currentTime - initialTime) > 0.001) {
+      video.currentTime = initialTime;
+    }
+  }, [initialTime, isPlaying, isVideoReady]);
+
   // Handle playback speed
   useEffect(() => {
     const video = videoRef.current;

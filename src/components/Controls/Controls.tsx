@@ -64,9 +64,8 @@ export function Controls({
   const eventMarkerPosition = isEventClip && duration > 0 ? (eventTimeOffset! / duration) * 100 : 0;
 
   return (
-    <div className="px-4 py-3 bg-[#0a0a0a] border-t border-white/5">
+    <div className="px-4 py-3 pb-8 bg-[#0a0a0a] border-t border-white/5">
       {/* Clip Navigation Bar (for multi-clip events) */}
-      {/* Compact Clip Navigation Bar */}
       {hasMultipleClips && (
         <div className="mb-2 flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-wider">
           {/* Left: Clip Counter */}
@@ -79,27 +78,28 @@ export function Controls({
             <button
               onClick={() => onPrevClip?.()}
               disabled={disabled || !hasPrev}
-              className="text-white/20 hover:text-white disabled:opacity-0 transition-all"
+              className="group relative text-white/20 hover:text-white disabled:opacity-0 transition-all"
               title="Previous clip (P)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
               </svg>
+              <kbd className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/40 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">P</kbd>
             </button>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               {Array.from({ length: totalClips }).map((_, i) => (
                 <button
                   key={i}
                   onClick={() => onSeekToClip?.(i)}
                   disabled={disabled}
-                  className={`relative h-1.5 rounded-full transition-all duration-300 ${i === clipIndex
-                    ? 'w-6 bg-tesla-red shadow-[0_0_8px_rgba(232,33,39,0.5)]'
-                    : 'w-1.5 bg-white/10 hover:bg-white/30'
+                  className={`relative h-2.5 flex-shrink-0 rounded-full transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${i === clipIndex
+                    ? 'w-10 bg-tesla-red shadow-[0_0_10px_rgba(232,33,39,0.6)]'
+                    : 'w-2.5 bg-white/10 hover:bg-white/30'
                     }`}
                 >
                   {hasEventMarker && eventClipIndex === i && (
-                    <div className="absolute top-[0px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-amber-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
                   )}
                 </button>
               ))}
@@ -108,12 +108,13 @@ export function Controls({
             <button
               onClick={() => onNextClip?.()}
               disabled={disabled || !hasNext}
-              className="text-white/20 hover:text-white disabled:opacity-0 transition-all"
+              className="group relative text-white/20 hover:text-white disabled:opacity-0 transition-all"
               title="Next clip (N)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
               </svg>
+              <kbd className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/40 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">N</kbd>
             </button>
           </div>
 
@@ -160,6 +161,7 @@ export function Controls({
             step={0.1}
             value={currentTime}
             onChange={(e) => onSeek(parseFloat(e.target.value))}
+            onMouseUp={(e) => (e.target as HTMLInputElement).blur()}
             disabled={disabled}
             className="w-full h-full appearance-none bg-transparent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed z-40 relative px-0"
             style={{
@@ -214,81 +216,87 @@ export function Controls({
         </div>
       </div>
 
-      {/* Control Buttons */}
-      <div className="relative flex items-center justify-between min-h-[48px]">
-        {/* Left: Jump to Event + Jump back */}
-        <div className="flex-1 flex items-center gap-3">
+      {/* Control Buttons Cluster */}
+      <div className="flex items-center justify-between mt-4">
+        {/* Left Side: Jump to Event */}
+        <div className="flex-1 flex items-center">
           {hasEventMarker && onJumpToEvent && (
             <button
               onClick={onJumpToEvent}
               disabled={disabled}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 shadow-sm shadow-amber-900/10"
+              className="group flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] bg-amber-500/5 text-amber-500/60 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/10 hover:border-amber-500/30 transition-all active:scale-95"
               title="Jump to Sentry Event (E)"
             >
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M13 3L4 14h7v7l9-11h-7V3z" />
               </svg>
-              <span className="hidden sm:inline">Jump to Event</span>
+              <span className="hidden xl:inline">Jump to Event</span>
+              <kbd className="hidden group-hover:inline-block ml-2 text-[9px] font-mono text-amber-500/60 bg-black/30 px-1.5 py-0.5 rounded border border-amber-500/20 pointer-events-none">E</kbd>
             </button>
           )}
+        </div>
 
+        {/* Center Cluster: Main Playback Navigation */}
+        <div className="flex items-center gap-4 px-6 py-2 bg-white/[0.03] border border-white/[0.05] rounded-full backdrop-blur-xl shadow-2xl">
           <button
             onClick={onJumpBackward}
             disabled={disabled}
-            className="flex items-center gap-1 px-2 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="group relative p-2.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-all active:scale-90"
             title="Jump back 10 seconds (J)"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
-            <span className="font-mono text-xs">-10s</span>
+            <kbd className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/40 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">J</kbd>
           </button>
-        </div>
 
-        {/* Center: Play/Pause */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
           <button
             onClick={onPlayPause}
             disabled={disabled}
-            className="w-14 h-14 flex items-center justify-center rounded-full bg-tesla-red hover:bg-[#ff1a21] shadow-xl shadow-red-950/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95"
+            className={`
+              w-14 h-14 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 shadow-lg
+              ${isPlaying
+                ? 'bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:shadow-white/5'
+                : 'bg-gradient-to-br from-tesla-red to-[#b0181d] text-white shadow-tesla-red/20 ring-4 ring-tesla-red/10 hover:scale-110 hover:shadow-tesla-red/40 hover:brightness-110'
+              }
+            `}
             title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
           >
             {isPlaying ? (
-              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="4" width="4" height="16" rx="1.5" />
                 <rect x="14" y="4" width="4" height="16" rx="1.5" />
               </svg>
             ) : (
-              <svg className="w-6 h-6 text-white translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5.14v14l11-7-11-7z" />
+              <svg className="w-7 h-7 translate-x-[2.5px]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M7 6v12l10-6z" />
               </svg>
             )}
           </button>
-        </div>
 
-        {/* Right: Jump forward + Speed */}
-        <div className="flex-1 flex items-center justify-end gap-3">
           <button
             onClick={onJumpForward}
             disabled={disabled}
-            className="flex items-center gap-1 px-2 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="group relative p-2.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-all active:scale-90"
             title="Jump forward 10 seconds (L)"
           >
-            <span className="font-mono text-xs">+10s</span>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
             </svg>
+            <kbd className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/40 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">L</kbd>
           </button>
+        </div>
 
+        {/* Right Side: Options */}
+        <div className="flex-1 flex items-center justify-end gap-2">
           <select
             value={camera}
             onChange={(e) => onCameraChange?.(e.target.value as CameraAngle)}
             disabled={disabled}
-            className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-gray-900 text-gray-400 border border-gray-800 hover:bg-gray-800 hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-tesla-red/40 uppercase tracking-tighter"
-            title="Thumbnail camera"
+            className="px-3 py-2 rounded-xl text-[10px] font-bold bg-white/[0.03] text-white/40 border border-white/5 hover:bg-white/5 hover:text-white/60 transition-all cursor-pointer focus:outline-none uppercase tracking-widest"
           >
             {currentClip && Array.from(currentClip.cameras.keys()).map((cam) => (
-              <option key={cam} value={cam}>
+              <option key={cam} value={cam} className="bg-[#0f0f0f]">
                 {cam.split('_').join(' ')}
               </option>
             ))}
@@ -298,45 +306,14 @@ export function Controls({
             value={playbackSpeed}
             onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
             disabled={disabled}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-gray-900 text-gray-300 border border-gray-800 hover:bg-gray-800 hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-tesla-red/40"
-            title="Playback speed"
+            className="px-3 py-2 rounded-xl text-[10px] font-bold bg-white/[0.03] text-white/40 border border-white/5 hover:bg-white/5 hover:text-white/60 transition-all cursor-pointer focus:outline-none tracking-widest"
           >
             {SPEED_OPTIONS.map((speed) => (
-              <option key={speed} value={speed}>
+              <option key={speed} value={speed} className="bg-[#0f0f0f]">
                 {speed}x
               </option>
             ))}
           </select>
-        </div>
-      </div>
-
-      {/* Keyboard Shortcuts Help */}
-      <div className="mt-6 border-t border-white/[0.03] pt-4">
-        <div className="flex items-center justify-center gap-6 text-[10px] uppercase tracking-[0.15em] font-bold text-white/20">
-          <div className="flex items-center gap-2">
-            <kbd className="min-w-[40px] px-1.5 py-1 bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-md text-white/40 shadow-sm">Space</kbd>
-            <span>Play/Pause</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="w-8 h-8 flex items-center justify-center bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-md text-white/40 shadow-sm text-sm">J</kbd>
-            <span>-10s</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="w-8 h-8 flex items-center justify-center bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-md text-white/40 shadow-sm text-sm">L</kbd>
-            <span>+10s</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="w-8 h-8 flex items-center justify-center bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-md text-white/40 shadow-sm text-sm">P</kbd>
-            <span>Prev</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="w-8 h-8 flex items-center justify-center bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-md text-white/40 shadow-sm text-sm">N</kbd>
-            <span>Next</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="min-w-[44px] px-1.5 py-1 bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-md text-white/40 shadow-sm">← →</kbd>
-            <span>Seek</span>
-          </div>
         </div>
       </div>
     </div>

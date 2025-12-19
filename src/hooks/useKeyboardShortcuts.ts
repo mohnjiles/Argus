@@ -9,6 +9,8 @@ import type { PlaybackController } from './usePlayback';
 export interface KeyboardShortcutOptions {
   onSeek?: (time: number) => void;
   onJumpToEvent?: () => void;
+  onNextEvent?: () => void;
+  onPrevEvent?: () => void;
 }
 
 export function useKeyboardShortcuts(playback: PlaybackController, options?: KeyboardShortcutOptions) {
@@ -29,12 +31,13 @@ export function useKeyboardShortcuts(playback: PlaybackController, options?: Key
       const pb = playbackRef.current;
       const opts = optionsRef.current;
 
-      // Ignore if user is typing in an input
-      if (
-        e.target instanceof HTMLInputElement ||
+      // Ignore if user is typing in a text-entry field
+      const isTextEntry =
+        (e.target instanceof HTMLInputElement && ['text', 'number', 'email', 'password', 'search', 'tel', 'url'].includes(e.target.type)) ||
         e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
+        e.target instanceof HTMLSelectElement;
+
+      if (isTextEntry) {
         return;
       }
 
@@ -112,6 +115,14 @@ export function useKeyboardShortcuts(playback: PlaybackController, options?: Key
         case 'P':
           e.preventDefault();
           pb.prevClip();
+          break;
+        case '[':
+          e.preventDefault();
+          opts?.onPrevEvent?.();
+          break;
+        case ']':
+          e.preventDefault();
+          opts?.onNextEvent?.();
           break;
         case 'e':
         case 'E':

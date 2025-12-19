@@ -362,7 +362,7 @@ export function ExportDialog({
                 >
                   <div className="text-center">
                     <div>Separate Files</div>
-                    <div className="text-xs opacity-70">{selectedCameras.length} videos</div>
+                    <div className="text-sm opacity-70">{selectedCameras.length} videos</div>
                   </div>
                 </button>
                 <button
@@ -379,7 +379,7 @@ export function ExportDialog({
                 >
                   <div className="text-center">
                     <div>Combined Grid</div>
-                    <div className="text-xs opacity-70">1 video</div>
+                    <div className="text-sm opacity-70">1 video</div>
                   </div>
                 </button>
               </div>
@@ -409,7 +409,7 @@ export function ExportDialog({
               ))}
             </div>
             {selectedCameras.length > 1 && exportMode === 'combined' && quality === 'original' && (
-              <p className="mt-2 text-xs text-amber-400">
+              <p className="mt-2 text-sm text-amber-400">
                 ⚠️ Original quality with multiple cameras may be slow. Try 720p for better performance.
               </p>
             )}
@@ -434,17 +434,17 @@ export function ExportDialog({
                   `}
                 >
                   <div>{opt.label}</div>
-                  <div className="text-xs opacity-70">{opt.description}</div>
+                  <div className="text-sm opacity-70">{opt.description}</div>
                 </button>
               ))}
             </div>
             {videoCodec === 'h264' && (
-              <p className="mt-2 text-xs text-gray-400">
+              <p className="mt-2 text-sm text-gray-400">
                 ✓ H.264 works everywhere - phones, browsers, video editors
               </p>
             )}
             {videoCodec === 'h265' && (
-              <p className="mt-2 text-xs text-blue-400">
+              <p className="mt-2 text-sm text-blue-400">
                 ⚡ H.265 has ~50% smaller files at same quality. Plays on VLC, iPhones, modern devices.
               </p>
             )}
@@ -506,7 +506,7 @@ export function ExportDialog({
 
                   <div className="flex items-center gap-4 bg-gray-800/50 p-4 rounded-xl border border-gray-700">
                     <div className="flex-1 space-y-1">
-                      <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500">Start Time</label>
+                      <label className="block text-xs uppercase tracking-wider font-bold text-gray-500">Start Time</label>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -525,7 +525,7 @@ export function ExportDialog({
                     <div className="w-px h-10 bg-gray-700 self-end mb-1" />
 
                     <div className="flex-1 space-y-1">
-                      <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500">End Time</label>
+                      <label className="block text-xs uppercase tracking-wider font-bold text-gray-500">End Time</label>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -607,7 +607,7 @@ export function ExportDialog({
 
               <label className="block text-sm font-medium text-gray-300 mb-3">
                 Export Timeline
-                <span className="ml-2 text-xs text-gray-500">
+                <span className="ml-2 text-sm text-gray-500">
                   ({event.clips.length} clips)
                 </span>
               </label>
@@ -662,7 +662,7 @@ export function ExportDialog({
                       <li key={i}>• {warning}</li>
                     ))}
                   </ul>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm text-gray-400">
                     Missing cameras will appear as black screens in the exported video.
                   </p>
                 </div>
@@ -711,7 +711,7 @@ export function ExportDialog({
               <div className="flex items-center justify-between pl-4 border-l-2 border-gray-700">
                 <div>
                   <span className="text-sm font-medium text-gray-300">Hide GPS coordinates</span>
-                  <p className="text-xs text-gray-500">For privacy when sharing on social media</p>
+                  <p className="text-sm text-gray-500">For privacy when sharing on social media</p>
                 </div>
                 <button
                   onClick={() => setHideLocation(!hideLocation)}
@@ -737,7 +737,7 @@ export function ExportDialog({
               <div className="flex items-center justify-between pl-4 border-l-2 border-gray-700">
                 <div>
                   <span className="text-sm font-medium text-gray-300">Data Charts</span>
-                  <p className="text-xs text-gray-500">Include speed, pedals, and G-force</p>
+                  <p className="text-sm text-gray-500">Include speed, pedals, and G-force</p>
                 </div>
                 <button
                   onClick={() => setIncludeCharts(!includeCharts)}
@@ -761,63 +761,47 @@ export function ExportDialog({
 
           </div>
 
-          {/* Progress */}
-          {isExporting && (
-            <div>
-              <div className="flex justify-between text-sm text-gray-400 mb-1">
-                <span>Exporting...</span>
-                <span>{Math.round(progress * 100)}%</span>
-              </div>
-              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-tesla-red transition-all duration-200"
-                  style={{ width: `${progress * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
 
-          {/* Error */}
-          {error && (
-            <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg">
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
-          <button
-            onClick={onClose}
-            disabled={isExporting}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={isExporting || selectedCameras.length === 0}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-tesla-red text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-700 bg-[#1a1a1a]">
             {isExporting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Exporting...
-              </>
+              <div className="space-y-2 animate-fade-in">
+                <div className="flex justify-between text-sm font-medium text-white mb-1">
+                  <span>Exporting Video...</span>
+                  <span>{Math.round(progress * 100)}%</span>
+                </div>
+                <div className="h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner">
+                  <div
+                    className="h-full bg-gradient-to-r from-tesla-red to-red-600 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(232,33,39,0.5)]"
+                    style={{ width: `${progress * 100}%` }}
+                  />
+                </div>
+                <p className="text-center text-xs text-gray-500 mt-2">Please wait while we process your video</p>
+              </div>
             ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Export {selectedCameras.length > 1 && exportMode === 'separate'
-                  ? `(${selectedCameras.length} files)`
-                  : ''}
-              </>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={onClose}
+                  disabled={isExporting}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExport}
+                  disabled={isExporting || selectedCameras.length === 0}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-tesla-red text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <span>Export Video</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+      );
 }
 

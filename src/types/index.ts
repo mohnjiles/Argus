@@ -105,6 +105,7 @@ export interface CameraFile {
   camera: CameraAngle;
   file: File;
   fileHandle?: FileSystemFileHandle;
+  isCorrupt?: boolean;
 }
 
 // A group of clips at the same timestamp (all camera angles) - represents ~1 minute
@@ -156,21 +157,26 @@ export function formatEventReason(reason?: string): string {
 
   // Exact matches
   if (reason === 'sentry_aware_object_detection') return 'Sentry Mode (Object)';
+  if (reason === 'sentry_locked_handle_pulled') return 'Sentry Mode (Handle Pulled)';
   if (reason === 'user_interaction_dashcam_icon_tapped') return 'Saved (via Dashcam icon)';
   if (reason === 'user_interaction_dashcam_panel_save') return 'Saved (via Dashcam panel)';
   if (reason === 'user_interaction_dashcam_launcher_action_tapped') return 'Saved (via Launcher)';
   if (reason === 'user_interaction_honk') return 'Horn Honked';
+  if (reason === 'vehicle_auto_emergency_braking') return 'Auto Emergency Braking';
 
   // Prefix matches (check more specific prefixes first)
   if (reason.startsWith('sentry_aware_accel_')) return 'Sentry Mode (Accelerometer)';
+  if (reason.startsWith('sentry_panic_accel_')) return 'Sentry Mode (Panic Accel)';
   if (reason.startsWith('user_interaction_')) return 'General User Interaction';
   if (reason.startsWith('sentry_')) return 'General Sentry';
 
-  // Fallback: convert snake_case to Title Case
-  return reason
+  // Fallback: convert snake_case to Title Case and mark as unrecognized
+  const prettified = reason
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+
+  return `[!] ${prettified}`;
 }
 
 // Format camera index from event.json into human-readable label
@@ -211,6 +217,7 @@ export interface FileSystemState {
   rootPath: string;
   events: VideoEvent[];
   isLoading: boolean;
+  isScanning: boolean;
   error: string | null;
 }
 

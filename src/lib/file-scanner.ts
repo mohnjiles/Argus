@@ -13,6 +13,43 @@ import type {
 } from '../types';
 import { parseTimestamp, CAMERA_ANGLES } from '../types';
 
+// Check if a file appears to be a valid video file
+async function checkFileHealth(file: File): Promise<boolean> {
+  // Check 1: 0-byte files are definitely corrupt
+  if (file.size === 0) return false;
+
+  // Check 2: Header check (MP4 atom)
+  // Valid MP4s usually start with a size (4 bytes) and 'ftyp' (4 bytes)
+  try {
+    const buffer = await file.slice(0, 8).arrayBuffer();
+    const view = new DataView(buffer);
+
+    // Size is usually non-zero (big-endian uint32 at offset 0)
+    const size = view.getUint32(0);
+
+    // Type should be 'ftyp' at offset 4
+    // f = 0x66, t = 0x74, y = 0x79, p = 0x70
+    const isFtyp =
+      view.getUint8(4) === 0x66 &&
+      view.getUint8(5) === 0x74 &&
+      view.getUint8(6) === 0x79 &&
+      view.getUint8(7) === 0x70;
+
+    // Some cameras might use 'moov' or 'mdat' or 'free' or 'wide' at start, 
+    // but TeslaCam is standard MP4.
+    // If size is 0 or ridiculous, it's bad.
+    if (size === 0 && !isFtyp) return false;
+
+    // We'll be lenient: if it has > 0 bytes and *maybe* looks like MP4 (ftyp), it's good.
+    // Ideally we check for 'ftyp'.
+    return isFtyp;
+  } catch (e) {
+    console.warn('Error checking file health:', file.name, e);
+    return false;
+  }
+}
+
+
 // Check if File System Access API is supported
 export function isFileSystemAccessSupported(): boolean {
   return 'showDirectoryPicker' in window;
@@ -41,9 +78,25 @@ export async function openDirectoryPicker(): Promise<FileSystemDirectoryHandle |
 // Scan a directory handle for Tesla dashcam clips and group them into events
 export async function scanDirectory(
   rootHandle: FileSystemDirectoryHandle,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
+  onEventsUpdate?: (events: VideoEvent[]) => void
 ): Promise<VideoEvent[]> {
   const clipMap = new Map<string, ClipGroup>();
+
+  // Throttle updates to avoid freezing the UI
+  let lastUpdate = 0;
+  const UPDATE_THROTTLE_MS = 1000; // Update at most once per second
+
+  const triggerUpdate = (force = false) => {
+    const now = Date.now();
+    if (force || now - lastUpdate >= UPDATE_THROTTLE_MS) {
+      const events = groupClipsIntoEvents(Array.from(clipMap.values()));
+      // Sort events by start time (most recent first)
+      events.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+      onEventsUpdate?.(events);
+      lastUpdate = now;
+    }
+  };
 
   onProgress?.('Scanning directory structure...');
 
@@ -72,7 +125,7 @@ export async function scanDirectory(
       });
     } else {
       // Scan current directory for mp4 files directly
-      await scanLooseFiles(rootHandle, 'RecentClips', clipMap, onProgress);
+      await scanLooseFiles(rootHandle, 'RecentClips', clipMap, () => triggerUpdate(false), onProgress);
     }
   }
 
@@ -82,14 +135,17 @@ export async function scanDirectory(
 
     if (name === 'RecentClips') {
       // RecentClips has loose files
-      await scanLooseFiles(handle, name, clipMap, onProgress);
+      await scanLooseFiles(handle, name, clipMap, () => triggerUpdate(false), onProgress);
     } else {
       // SentryClips and SavedClips have event folders
-      await scanEventFolders(handle, name, clipMap, onProgress);
+      await scanEventFolders(handle, name, clipMap, () => triggerUpdate(false), onProgress);
     }
   }
 
-  // Convert clips to events
+  // Final update to ensure all clips are shown
+  triggerUpdate(true);
+
+  // Convert clips to events for final return
   const events = groupClipsIntoEvents(Array.from(clipMap.values()));
 
   // Sort events by start time (most recent first)
@@ -273,14 +329,19 @@ async function scanLooseFiles(
   dirHandle: FileSystemDirectoryHandle,
   source: ClipSource,
   clipMap: Map<string, ClipGroup>,
+  onUpdate: () => void,
   _onProgress?: (message: string) => void
 ): Promise<void> {
-  for await (const entry of dirHandle.values()) {
-    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.mp4')) {
-      const parsed = parseTimestamp(entry.name);
-      if (!parsed) continue;
+  const pendingFiles: FileSystemFileHandle[] = [];
+  const BATCH_SIZE = 50;
 
-      const timestampStr = entry.name.substring(0, 19); // YYYY-MM-DD_HH-MM-SS
+  // Process a batch of files in parallel
+  const processBatch = async (fileHandles: FileSystemFileHandle[]) => {
+    await Promise.all(fileHandles.map(async (fileHandle) => {
+      const parsed = parseTimestamp(fileHandle.name);
+      if (!parsed) return;
+
+      const timestampStr = fileHandle.name.substring(0, 19); // YYYY-MM-DD_HH-MM-SS
       const clipId = `${source}-${timestampStr}`;
 
       let clipGroup = clipMap.get(clipId);
@@ -295,15 +356,37 @@ async function scanLooseFiles(
         clipMap.set(clipId, clipGroup);
       }
 
-      const fileHandle = entry as FileSystemFileHandle;
+      // getFile() can be slow, so we do this in parallel
       const file = await fileHandle.getFile();
+      const isHealthy = await checkFileHealth(file);
 
       clipGroup.cameras.set(parsed.camera, {
         camera: parsed.camera,
         file,
         fileHandle,
+        isCorrupt: !isHealthy,
       });
+    }));
+
+    // Notify update after batch is done
+    onUpdate();
+  };
+
+  // Iterate and batch
+  for await (const entry of dirHandle.values()) {
+    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.mp4')) {
+      pendingFiles.push(entry as FileSystemFileHandle);
+
+      if (pendingFiles.length >= BATCH_SIZE) {
+        await processBatch([...pendingFiles]); // Clone array
+        pendingFiles.length = 0;
+      }
     }
+  }
+
+  // Process remaining files
+  if (pendingFiles.length > 0) {
+    await processBatch(pendingFiles);
   }
 }
 
@@ -312,6 +395,7 @@ async function scanEventFolders(
   dirHandle: FileSystemDirectoryHandle,
   source: ClipSource,
   clipMap: Map<string, ClipGroup>,
+  onUpdate: () => void,
   _onProgress?: (message: string) => void
 ): Promise<void> {
   for await (const entry of dirHandle.values()) {
@@ -326,9 +410,12 @@ async function scanEventFolders(
 
     _onProgress?.(`Scanning ${source}/${eventFolder}...`);
 
-    // Read event.json if present
     let eventData: EventData | undefined;
     let thumbnailUrl: string | undefined;
+    const folderClips: ClipGroup[] = [];
+
+    // Collect specific file promises to execute in parallel
+    const fileProcessingPromises: Promise<void>[] = [];
 
     for await (const fileEntry of eventHandle.values()) {
       if (fileEntry.kind !== 'file') continue;
@@ -337,55 +424,75 @@ async function scanEventFolders(
       const fileHandle = fileEntry as FileSystemFileHandle;
 
       if (fileName === 'event.json') {
-        try {
-          const file = await fileHandle.getFile();
-          const text = await file.text();
-          eventData = JSON.parse(text) as EventData;
-        } catch (e) {
-          console.warn('Failed to parse event.json:', e);
-        }
+        fileProcessingPromises.push((async () => {
+          try {
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+            eventData = JSON.parse(text) as EventData;
+          } catch (e) {
+            console.warn('Failed to parse event.json:', e);
+          }
+        })());
       } else if (fileName === 'thumb.png') {
-        try {
-          const file = await fileHandle.getFile();
-          thumbnailUrl = URL.createObjectURL(file);
-        } catch (e) {
-          console.warn('Failed to load thumbnail:', e);
-        }
+        fileProcessingPromises.push((async () => {
+          try {
+            const file = await fileHandle.getFile();
+            thumbnailUrl = URL.createObjectURL(file);
+          } catch (e) {
+            console.warn('Failed to load thumbnail:', e);
+          }
+        })());
       } else if (fileName.toLowerCase().endsWith('.mp4') && fileName !== 'event.mp4') {
-        const parsed = parseTimestamp(fileName);
-        if (!parsed) continue;
+        fileProcessingPromises.push((async () => {
+          const parsed = parseTimestamp(fileName);
+          if (!parsed) return;
 
-        const timestampStr = fileName.substring(0, 19);
-        const clipId = `${source}-${eventFolder}-${timestampStr}`;
+          const timestampStr = fileName.substring(0, 19);
+          const clipId = `${source}-${eventFolder}-${timestampStr}`;
 
-        let clipGroup = clipMap.get(clipId);
-        if (!clipGroup) {
-          clipGroup = {
-            id: clipId,
-            timestamp: parsed.timestamp,
-            timestampStr,
-            source,
-            eventFolder,
-            cameras: new Map<CameraAngle, CameraFile>(),
-          };
-          clipMap.set(clipId, clipGroup);
-        }
+          // To be safe, we'll acquire the file first, then update map synchronously.
+          const file = await fileHandle.getFile();
+          const isHealthy = await checkFileHealth(file);
 
-        const file = await fileHandle.getFile();
-        clipGroup.cameras.set(parsed.camera, {
-          camera: parsed.camera,
-          file,
-          fileHandle,
-        });
+          // Now synchronous block
+          let clipGroup = clipMap.get(clipId);
+          if (!clipGroup) {
+            // Double check in case another promise created it
+            clipGroup = clipMap.get(clipId);
+            if (!clipGroup) {
+              clipGroup = {
+                id: clipId,
+                timestamp: parsed.timestamp,
+                timestampStr,
+                source,
+                eventFolder,
+                cameras: new Map<CameraAngle, CameraFile>(),
+              };
+              clipMap.set(clipId, clipGroup);
+              folderClips.push(clipGroup);
+            }
+          }
+
+          clipGroup.cameras.set(parsed.camera, {
+            camera: parsed.camera,
+            file,
+            fileHandle,
+            isCorrupt: !isHealthy,
+          });
+        })());
       }
     }
 
+    // Wait for all files in this folder to be processed
+    await Promise.all(fileProcessingPromises);
+
     // Add event data and thumbnail to all clips in this event folder
-    for (const [, clip] of clipMap) {
-      if (clip.eventFolder === eventFolder) {
+    if (folderClips.length > 0) {
+      for (const clip of folderClips) {
         clip.eventData = eventData;
         clip.thumbnailUrl = thumbnailUrl;
       }
+      onUpdate();
     }
   }
 }
@@ -422,7 +529,7 @@ export function getSourceStyle(source: ClipSource): { color: string; icon: strin
     case 'SentryClips':
       return { color: '#ef4444', icon: '👁', label: 'Sentry' };
     case 'SavedClips':
-      return { color: '#22c55e', icon: '💾', label: 'Saved' };
+      return { color: '#22c55e', icon: '💾', label: 'Dashcam' };
   }
 }
 

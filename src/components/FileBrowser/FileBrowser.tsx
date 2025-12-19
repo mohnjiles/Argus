@@ -3,10 +3,11 @@
  * Displays events organized by date and source with expandable clip lists
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { VideoEvent, ClipGroup, ClipSource } from '../../types';
 import { formatEventReason, formatEventCamera } from '../../types';
 import { groupEventsByDate, getSourceStyle, formatEventDuration } from '../../lib/file-scanner';
+import { RecentFolder, verifyPermission } from '../../lib/recent-folders';
 
 interface FileBrowserProps {
   events: VideoEvent[];
@@ -14,10 +15,14 @@ interface FileBrowserProps {
   selectedClipIndex: number;
   onSelectEvent: (event: VideoEvent, clipIndex?: number) => void;
   isLoading: boolean;
+  isScanning: boolean;
   rootPath: string;
+  onOpenFolder?: (handle?: FileSystemDirectoryHandle) => void;
+  recentFolders?: RecentFolder[];
+  onRemoveRecent?: (path: string) => void;
 }
 
-type SourceFilter = 'all' | ClipSource;
+type SidebarFilter = 'all' | ClipSource | 'AEB' | 'Honk' | 'Panic' | 'Unmatched';
 
 export function FileBrowser({
   events,
@@ -25,23 +30,83 @@ export function FileBrowser({
   selectedClipIndex,
   onSelectEvent,
   isLoading,
+  isScanning,
   rootPath,
+  onOpenFolder,
+  recentFolders = [],
+  onRemoveRecent,
 }: FileBrowserProps) {
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [sourceFilter, setSourceFilter] = useState<SidebarFilter>('all');
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
 
-  // Count events by source
+  // Handle opening a recent folder (requires re-verifying permission)
+  const handleOpenRecent = async (folder: RecentFolder) => {
+    try {
+      const granted = await verifyPermission(folder.handle);
+      if (granted) {
+        onOpenFolder?.(folder.handle);
+      }
+    } catch (e) {
+      console.error('Failed to open recent folder:', e);
+    }
+  };
+
+  // Auto-expand and scroll selected item
+  useEffect(() => {
+    if (selectedEvent) {
+      // Auto expand selection and collapse others (accordion style)
+      setExpandedEvents(new Set([selectedEvent.id]));
+
+      // Scroll into view
+      setTimeout(() => {
+        const selectedEl = document.querySelector('[data-selected="true"]');
+        if (selectedEl) {
+          selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
+    }
+  }, [selectedEvent?.id, selectedClipIndex]);
+
+  // Count events by source and reason
   const sourceCounts = useMemo(() => {
-    const counts = { all: events.length, RecentClips: 0, SentryClips: 0, SavedClips: 0 };
+    const counts = { all: events.length, RecentClips: 0, SentryClips: 0, SavedClips: 0, AEB: 0, Honk: 0, Panic: 0, Unmatched: 0 };
     for (const event of events) {
-      counts[event.source]++;
+      if (event.source) {
+        counts[event.source]++;
+      }
+
+      const reason = event.eventData?.reason;
+      if (reason === 'vehicle_auto_emergency_braking') {
+        counts.AEB++;
+      } else if (reason === 'user_interaction_honk') {
+        counts.Honk++;
+      } else if (reason?.startsWith('sentry_panic_accel_')) {
+        counts.Panic++;
+      }
+
+      // Check if the reason is formatted as "unrecognized"
+      if (reason && formatEventReason(reason).startsWith('[!]')) {
+        counts.Unmatched++;
+      }
     }
     return counts;
   }, [events]);
 
-  // Filter events by source
+  // Filter events by source or reason
   const filteredEvents = useMemo(() => {
     if (sourceFilter === 'all') return events;
+    if (sourceFilter === 'AEB') {
+      return events.filter(e => e.eventData?.reason === 'vehicle_auto_emergency_braking');
+    }
+    if (sourceFilter === 'Honk') {
+      return events.filter(e => e.eventData?.reason === 'user_interaction_honk');
+    }
+    if (sourceFilter === 'Panic') {
+      return events.filter(e => e.eventData?.reason?.startsWith('sentry_panic_accel_'));
+    }
+    if (sourceFilter === 'Unmatched') {
+      return events.filter(e => e.eventData?.reason && formatEventReason(e.eventData.reason).startsWith('[!]'));
+    }
     return events.filter(event => event.source === sourceFilter);
   }, [events, sourceFilter]);
 
@@ -72,16 +137,66 @@ export function FileBrowser({
 
   if (events.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="text-center">
-          <svg className="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <p className="text-sm text-gray-400 mb-2">No clips loaded</p>
-          <p className="text-xs text-gray-500">
-            Click "Open Folder" to select your<br />dashcam folder
-          </p>
+      <div className="flex-1 flex flex-col p-6 overflow-y-auto">
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <button
+            onClick={() => onOpenFolder?.()}
+            className="text-center group p-8 rounded-2xl hover:bg-white/[0.03] transition-all border border-transparent hover:border-white/10 max-w-sm w-full"
+          >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-white/5 flex items-center justify-center group-hover:scale-110 group-hover:bg-tesla-red/10 transition-all duration-300">
+              <svg className="w-10 h-10 text-gray-500 group-hover:text-tesla-red transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">No clips loaded</h3>
+            <p className="text-sm text-gray-500 mb-6">Open your TeslaCam folder to get started</p>
+            <div className="inline-flex items-center gap-2 px-6 py-2.5 bg-tesla-red text-white text-sm font-bold rounded-full shadow-lg shadow-tesla-red/20 group-hover:scale-105 active:scale-95 transition-all">
+              Choose Folder
+            </div>
+          </button>
         </div>
+
+        {recentFolders.length > 0 && (
+          <div className="mt-12 w-full max-w-sm mx-auto">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-4 px-2">Recent Folders</h4>
+            <div className="space-y-2">
+              {recentFolders.map((folder) => (
+                <div
+                  key={folder.path}
+                  className="group/item flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-white/10 transition-all"
+                >
+                  <button
+                    onClick={() => handleOpenRecent(folder)}
+                    className="flex-1 flex items-center gap-3 text-left overflow-hidden mr-2"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 text-gray-400 group-hover/item:text-white transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="truncate">
+                      <div className="text-sm font-medium text-gray-300 group-hover/item:text-white transition-colors truncate">
+                        {folder.path}
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        {new Date(folder.lastOpened).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => onRemoveRecent?.(folder.path)}
+                    className="p-2 opacity-0 group-hover/item:opacity-100 text-gray-500 hover:text-red-400 transition-all rounded-lg hover:bg-red-400/10"
+                    title="Remove from recents"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -90,11 +205,20 @@ export function FileBrowser({
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800">
-        <div className="flex items-center gap-2 mb-1">
-          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <span className="text-sm font-medium truncate">{rootPath}</span>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <span className="text-sm font-medium truncate">{rootPath}</span>
+          </div>
+
+          {isScanning && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+              <div className="w-1.5 h-1.5 rounded-full bg-tesla-red animate-pulse" />
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Scanning</span>
+            </div>
+          )}
         </div>
         <p className="text-xs text-gray-500">
           {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
@@ -128,8 +252,36 @@ export function FileBrowser({
           active={sourceFilter === 'SavedClips'}
           onClick={() => setSourceFilter('SavedClips')}
           count={sourceCounts.SavedClips}
-          label="Saved"
+          label="Dashcam"
           color="#22c55e"
+        />
+        <FilterButton
+          active={sourceFilter === 'AEB'}
+          onClick={() => setSourceFilter('AEB')}
+          count={sourceCounts.AEB}
+          label="Braking"
+          color="#f59e0b"
+        />
+        <FilterButton
+          active={sourceFilter === 'Honk'}
+          onClick={() => setSourceFilter('Honk')}
+          count={sourceCounts.Honk}
+          label="Honks"
+          color="#6366f1"
+        />
+        <FilterButton
+          active={sourceFilter === 'Panic'}
+          onClick={() => setSourceFilter('Panic')}
+          count={sourceCounts.Panic}
+          label="Panic"
+          color="#ec4899"
+        />
+        <FilterButton
+          active={sourceFilter === 'Unmatched'}
+          onClick={() => setSourceFilter('Unmatched')}
+          count={sourceCounts.Unmatched}
+          label="Unrecognized"
+          color="#94a3b8"
         />
       </div>
 
@@ -166,7 +318,7 @@ export function FileBrowser({
           href="https://ko-fi.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="group relative flex  gap-3 w-full px-4 py-3 bg-gradient-to-r from-tesla-red/10 to-tesla-red/5 border border-tesla-red/30 rounded-xl hover:translate-y-[-2px] hover:shadow-[0_4px_12px_rgba(232,33,39,0.2)] transition-all duration-300"
+          className="group relative flex gap-3 w-full px-4 py-3 bg-gradient-to-r from-tesla-red/10 to-tesla-red/5 border border-tesla-red/30 rounded-xl hover:translate-y-[-2px] hover:shadow-[0_4px_12px_rgba(232,33,39,0.2)] transition-all duration-300"
         >
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-tesla-red text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -203,6 +355,9 @@ function EventItem({
 }: EventItemProps) {
   const sourceStyle = getSourceStyle(event.source);
   const hasMultipleClips = event.clips.length > 1;
+  const hasCorruption = event.clips.some(clip =>
+    Array.from(clip.cameras.values()).some(cam => cam.isCorrupt)
+  );
 
   return (
     <div className={`
@@ -259,6 +414,11 @@ function EventItem({
               {hasMultipleClips && (
                 <span className="text-xs text-gray-500">
                   • {event.clips.length} clips
+                </span>
+              )}
+              {hasCorruption && (
+                <span className="text-amber-500 text-xs" title="Contains corrupt or missing files">
+                  ⚠️
                 </span>
               )}
             </div>
@@ -329,10 +489,12 @@ interface ClipItemProps {
 
 function ClipItem({ clip, index, isSelected, onClick }: ClipItemProps) {
   const cameraCount = clip.cameras.size;
+  const hasCorruption = Array.from(clip.cameras.values()).some(c => c.isCorrupt);
 
   return (
     <button
       onClick={onClick}
+      data-selected={isSelected}
       className={`
         w-full text-left p-2 rounded transition-colors flex items-center gap-2
         ${isSelected
@@ -352,6 +514,11 @@ function ClipItem({ clip, index, isSelected, onClick }: ClipItemProps) {
       <span className="text-xs text-gray-500">
         {cameraCount} cam{cameraCount !== 1 ? 's' : ''}
       </span>
+      {hasCorruption && (
+        <span className="text-amber-500 text-xs" title="Corrupt file detected">
+          ⚠️
+        </span>
+      )}
     </button>
   );
 }

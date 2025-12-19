@@ -48,10 +48,10 @@ export function SettingsDialog({
   onClose,
 }: SettingsDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-gray-900 rounded-xl shadow-2xl border border-gray-700 max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-[#121212]/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
           <button
             onClick={onClose}
@@ -74,21 +74,19 @@ export function SettingsDialog({
             <div className="flex gap-2">
               <button
                 onClick={() => onSpeedUnitChange('mph')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                  speedUnit === 'mph'
-                    ? 'bg-tesla-red text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${speedUnit === 'mph'
+                  ? 'bg-tesla-red text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
               >
                 MPH
               </button>
               <button
                 onClick={() => onSpeedUnitChange('kph')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                  speedUnit === 'kph'
-                    ? 'bg-tesla-red text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${speedUnit === 'kph'
+                  ? 'bg-tesla-red text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
               >
                 KPH
               </button>
@@ -96,19 +94,17 @@ export function SettingsDialog({
           </div>
 
           {/* Show Overlay */}
-          <div>
-            <label className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-300">Show Telemetry Overlay</span>
+          <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+            <label className="flex items-center justify-between cursor-pointer group">
+              <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">Show Telemetry Overlay</span>
               <button
                 onClick={() => onShowOverlayChange(!showOverlay)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showOverlay ? 'bg-tesla-red' : 'bg-gray-700'
-                }`}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${showOverlay ? 'bg-tesla-red shadow-[0_0_15px_rgba(232,33,39,0.4)]' : 'bg-gray-700'
+                  }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showOverlay ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${showOverlay ? 'translate-x-6' : 'translate-x-1'
+                    }`}
                 />
               </button>
             </label>
@@ -130,11 +126,10 @@ export function SettingsDialog({
                   <button
                     key={option.value}
                     onClick={() => onOverlayPositionChange(option.value as OverlayPosition)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      overlayPosition === option.value
-                        ? 'bg-tesla-red text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${overlayPosition === option.value
+                      ? 'bg-tesla-red text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      }`}
                   >
                     {option.label}
                   </button>
@@ -149,7 +144,7 @@ export function SettingsDialog({
               <label className="block text-sm font-medium text-gray-300">
                 G-Force Displays
               </label>
-              
+
               {/* G-Meter Toggle */}
               <div className="pl-2 border-l-2 border-gray-700 space-y-3">
                 <label className="flex items-center justify-between">
@@ -159,18 +154,16 @@ export function SettingsDialog({
                   </div>
                   <button
                     onClick={() => onShowGMeterChange(!showGMeter)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      showGMeter ? 'bg-tesla-red' : 'bg-gray-700'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showGMeter ? 'bg-tesla-red' : 'bg-gray-700'
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        showGMeter ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showGMeter ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </button>
                 </label>
-                
+
                 {/* Acceleration Chart Toggle */}
                 <label className="flex items-center justify-between">
                   <div>
@@ -179,18 +172,16 @@ export function SettingsDialog({
                   </div>
                   <button
                     onClick={() => onShowAccelChartChange(!showAccelChart)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      showAccelChart ? 'bg-tesla-red' : 'bg-gray-700'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showAccelChart ? 'bg-tesla-red' : 'bg-gray-700'
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        showAccelChart ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAccelChart ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </button>
                 </label>
-                
+
                 {/* Pedal Chart Toggle */}
                 <label className="flex items-center justify-between">
                   <div>
@@ -199,18 +190,16 @@ export function SettingsDialog({
                   </div>
                   <button
                     onClick={() => onShowPedalChartChange(!showPedalChart)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      showPedalChart ? 'bg-tesla-red' : 'bg-gray-700'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showPedalChart ? 'bg-tesla-red' : 'bg-gray-700'
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        showPedalChart ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showPedalChart ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </button>
                 </label>
-                
+
                 {/* Speed Chart Toggle */}
                 <label className="flex items-center justify-between">
                   <div>
@@ -219,18 +208,16 @@ export function SettingsDialog({
                   </div>
                   <button
                     onClick={() => onShowSpeedChartChange(!showSpeedChart)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      showSpeedChart ? 'bg-tesla-red' : 'bg-gray-700'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showSpeedChart ? 'bg-tesla-red' : 'bg-gray-700'
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        showSpeedChart ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showSpeedChart ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </button>
                 </label>
-                
+
                 {/* Debug Overlay Toggle */}
                 <label className="flex items-center justify-between">
                   <div>
@@ -239,14 +226,12 @@ export function SettingsDialog({
                   </div>
                   <button
                     onClick={() => onShowAccelDebugChange(!showAccelDebug)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      showAccelDebug ? 'bg-tesla-red' : 'bg-gray-700'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showAccelDebug ? 'bg-tesla-red' : 'bg-gray-700'
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        showAccelDebug ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAccelDebug ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </button>
                 </label>
@@ -256,16 +241,16 @@ export function SettingsDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-white/5 bg-white/[0.02]">
           <button
             onClick={onReset}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
           >
             Reset to Defaults
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-tesla-red text-white hover:bg-red-700 transition-colors"
+            className="px-6 py-2 rounded-lg text-sm font-bold bg-white text-black hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
           >
             Done
           </button>

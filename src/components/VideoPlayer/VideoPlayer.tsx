@@ -38,6 +38,7 @@ interface VideoPlayerProps {
   showSpeedChart: boolean;
   showAccelDebug: boolean;
   currentTime?: number; // Current playback time in ms for charts
+  onSetAllCamerasVisible?: (visible: boolean) => void;
 }
 
 // Create dynamic layout based on visible cameras
@@ -132,11 +133,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   showSpeedChart,
   showAccelDebug,
   currentTime = 0,
+  onSetAllCamerasVisible,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRefs = useRef<Map<CameraAngle, CameraViewHandle>>(new Map());
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const [customLayout, setCustomLayout] = useState<GridLayout.Layout[] | null>(null);
   const [localSeiData, setLocalSeiData] = useState<SeiMetadata | null>(null);
 
   // Expose seekAll to parent
@@ -217,64 +218,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   // Generate layout based on visible cameras
   const layout = useMemo(() => {
-    if (customLayout && customLayout.length === activeVisibleCameras.length) {
-      const customCameras = new Set(customLayout.map(l => l.i));
-      if (activeVisibleCameras.every(cam => customCameras.has(cam))) {
-        return customLayout;
-      }
-    }
-    const generatedLayout = createLayout(activeVisibleCameras);
-    return generatedLayout;
-  }, [activeVisibleCameras, customLayout]);
-
-  // Swap-on-drop handler
-  const handleDragStop = useCallback((
-    _newLayout: GridLayout.Layout[],
-    _oldItem: GridLayout.Layout,
-    newItem: GridLayout.Layout,
-  ) => {
-    const current = customLayout ?? layout;
-    const movedId = String(newItem.i);
-    const moved = current.find(i => String(i.i) === movedId);
-    if (!moved) return;
-
-    let targetSlot: GridLayout.Layout | null = null;
-    let bestDist = Number.POSITIVE_INFINITY;
-    for (const slot of current) {
-      const dist = Math.abs(slot.x - newItem.x) + Math.abs(slot.y - newItem.y);
-      if (dist < bestDist) {
-        bestDist = dist;
-        targetSlot = slot;
-      }
-    }
-    if (!targetSlot) return;
-
-    if (moved.x === targetSlot.x && moved.y === targetSlot.y) return;
-
-    const occupant = current.find(i => i.x === targetSlot!.x && i.y === targetSlot!.y);
-
-    const next = current.map(i => {
-      if (String(i.i) === movedId) {
-        return { ...i, x: targetSlot!.x, y: targetSlot!.y };
-      }
-      if (occupant && String(i.i) === String(occupant.i)) {
-        return { ...i, x: moved.x, y: moved.y };
-      }
-      return i;
-    });
-
-    const key = (l: GridLayout.Layout[]) =>
-      JSON.stringify(l.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })).sort((a, b) => String(a.i).localeCompare(String(b.i))));
-
-    if (key(next) !== key(current)) {
-      setCustomLayout(next);
-    }
-  }, [customLayout, layout]);
-
-  // Reset custom layout when visible cameras change
-  useEffect(() => {
-    setCustomLayout(null);
-  }, [activeVisibleCameras.length]);
+    return createLayout(activeVisibleCameras);
+  }, [activeVisibleCameras]);
 
   // Handle time update from primary camera
   const handleTimeUpdate = useCallback((time: number) => {
@@ -317,8 +262,25 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div className="h-full flex flex-col">
       {/* Camera Toggle Bar */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-3">
+      <div className="flex-shrink-0 flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
+          {onSetAllCamerasVisible && (
+            <button
+              onClick={() => {
+                const allVisible = availableCameras.every(cam => visibleCameras.has(cam));
+                onSetAllCamerasVisible(!allVisible);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/[0.03] text-white/40 hover:bg-white/10 hover:text-white/80 border border-white/[0.05] flex items-center gap-1.5 group"
+            >
+              <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+              {availableCameras.every(cam => visibleCameras.has(cam)) ? "Hide All" : "Show All"}
+            </button>
+          )}
+
+          <div className="w-[1px] h-4 bg-white/10 mx-1" />
+
           {CAMERA_ANGLES.map((camera) => {
             const isAvailable = availableCameras.includes(camera);
             const isVisible = visibleCameras.has(camera);
@@ -333,8 +295,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                   ${!isAvailable
                     ? 'opacity-30 cursor-not-allowed bg-gray-800 text-gray-500'
                     : isVisible
-                      ? 'bg-tesla-red text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      ? 'bg-tesla-red text-white shadow-lg shadow-tesla-red/20'
+                      : 'bg-white/[0.03] text-white/40 hover:bg-white/10 hover:text-white/60 border border-white/[0.05]'
                   }
                 `}
                 title={isAvailable ? `Toggle ${CAMERA_LABELS[camera]}` : `${CAMERA_LABELS[camera]} not available`}
@@ -349,21 +311,40 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       {/* Video Grid */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden"
+        onDoubleClick={() => {
+          if (!document.fullscreenElement) {
+            containerRef.current?.requestFullscreen().catch((err) => {
+              console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+          } else {
+            document.exitFullscreen();
+          }
+        }}
+        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden cursor-pointer"
       >
         {activeVisibleCameras.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <p className="text-gray-500">No cameras visible. Click a camera button above to show it.</p>
+          <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-2">
+            <svg className="w-12 h-12 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+            </svg>
+            <p className="font-medium">All cameras hidden</p>
+            <p className="text-sm opacity-60">Enable a camera above to view</p>
           </div>
         ) : !clip ? (
           <div className="h-full flex items-center justify-center">
-            <p className="text-gray-500">No clip selected.</p>
+            <div className="text-center p-8 opacity-40">
+              <svg className="w-24 h-24 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <h3 className="text-xl font-medium text-gray-400 mb-2">Ready to Watch</h3>
+              <p className="text-gray-500">Select a clip from the sidebar to start playback</p>
+            </div>
           </div>
         ) : containerSize.width === 0 || containerSize.height === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <p className="text-gray-500">
-              Measuring layout… ({containerSize.width}×{containerSize.height})
-            </p>
+            <div className="animate-pulse text-gray-600 font-medium tracking-wider text-xs uppercase">
+              Initializing Layout...
+            </div>
           </div>
         ) : layout.length > 0 ? (
           <GridLayout
@@ -372,7 +353,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             cols={12}
             rowHeight={rowHeight}
             width={containerSize.width}
-            onDragStop={handleDragStop}
             isDraggable={false}
             isResizable={false}
             compactType={null}
@@ -381,17 +361,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             margin={[4, 4]}
             containerPadding={[4, 4]}
           >
-            {layout.map((item, index) => {
-              const camera = item.i as CameraAngle;
+            {layout.map((_item, index) => {
+              const camera = layout[index].i as CameraAngle;
               const cameraFile = clip.cameras.get(camera);
               const isPrimary = index === 0;
 
               return (
                 <div
                   key={camera}
-                  className="bg-gray-900 rounded-lg overflow-hidden"
+                  className="bg-gray-900 rounded-lg overflow-hidden group/camera relative"
                   style={{ width: '100%', height: '100%' }}
                 >
+
                   <CameraView
                     ref={(handle) => setCameraRef(camera, handle)}
                     camera={camera}
