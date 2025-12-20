@@ -80,7 +80,7 @@ export function ExportDialog({
   const [endTime, setEndTime] = useState(duration);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   // Cross-clip export state
   const [exportScope, setExportScope] = useState<'single-clip' | 'cross-clip'>('single-clip');
