@@ -27,7 +27,7 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
     let startTime: number, endTime: number;
 
     if (options.timeRange) {
-        ({ startClipIndex, startClipIndex: startClipIndex, startTime, endClipIndex, endTime } = options.timeRange);
+        ({ startClipIndex, startTime, endClipIndex, endTime } = options.timeRange);
     } else {
         // Single clip mode defaults
         startClipIndex = 0;
