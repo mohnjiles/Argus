@@ -13,6 +13,9 @@ interface SettingsDialogProps {
   showPedalChart: boolean;
   showSpeedChart: boolean;
   showAccelDebug: boolean;
+  showMap: boolean;
+  showControls: boolean;
+  autoHideControls: boolean;
   onSpeedUnitChange: (unit: SpeedUnit) => void;
   onShowOverlayChange: (show: boolean) => void;
   onShowGMeterChange: (show: boolean) => void;
@@ -20,6 +23,9 @@ interface SettingsDialogProps {
   onShowPedalChartChange: (show: boolean) => void;
   onShowSpeedChartChange: (show: boolean) => void;
   onShowAccelDebugChange: (show: boolean) => void;
+  onShowMapChange: (show: boolean) => void;
+  onShowControlsChange: (show: boolean) => void;
+  onAutoHideControlsChange: (autoHide: boolean) => void;
   onReset: () => void;
   onClose: () => void;
 }
@@ -39,11 +45,17 @@ export function SettingsDialog({
   onShowPedalChartChange,
   onShowSpeedChartChange,
   onShowAccelDebugChange,
+  showMap,
+  onShowMapChange,
+  showControls,
+  onShowControlsChange,
+  autoHideControls,
+  onAutoHideControlsChange,
   onReset,
   onClose,
 }: SettingsDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-[#121212]/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
@@ -88,10 +100,13 @@ export function SettingsDialog({
             </div>
           </div>
 
-          {/* Show Overlay */}
-          <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+          {/* Main Overlay Toggle */}
+          <div className="bg-tesla-red/5 rounded-xl p-4 border border-tesla-red/20">
             <label className="flex items-center justify-between cursor-pointer group">
-              <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">Show Telemetry Overlay</span>
+              <div>
+                <span className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors uppercase tracking-wider">Speed & Status Bar</span>
+                <p className="text-xs text-gray-500 mt-0.5">Velocity, Gear, and Autopilot indicators</p>
+              </div>
               <button
                 onClick={() => onShowOverlayChange(!showOverlay)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${showOverlay ? 'bg-tesla-red shadow-[0_0_15px_rgba(232,33,39,0.4)]' : 'bg-gray-700'
@@ -107,37 +122,62 @@ export function SettingsDialog({
 
 
 
-          {/* G-Force Overlays Section */}
-          {showOverlay && (
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-300">
-                G-Force Displays
+          {/* HUD Widgets Section */}
+          <div className="space-y-4">
+            <label className="block text-sm font-bold text-gray-400 uppercase tracking-[0.1em]">
+              HUD Widgets
+            </label>
+
+            <div className="bg-white/5 rounded-xl p-4 border border-white/5 space-y-4">
+              {/* Map Toggle */}
+              <label className="flex items-center justify-between cursor-pointer group">
+                <div>
+                  <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">Telemetry Map</span>
+                  <p className="text-xs text-gray-500">Separately draggable mini-map with real-time location</p>
+                </div>
+                <button
+                  onClick={() => onShowMapChange(!showMap)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${showMap ? 'bg-tesla-red shadow-[0_0_15px_rgba(232,33,39,0.4)]' : 'bg-gray-700'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${showMap ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
               </label>
 
               {/* G-Meter Toggle */}
-              <div className="pl-2 border-l-2 border-gray-700 space-y-3">
-                <label className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-gray-300">G-Meter</span>
-                    <p className="text-xs text-gray-500">Circular visualization of lateral/longitudinal G-forces</p>
-                  </div>
-                  <button
-                    onClick={() => onShowGMeterChange(!showGMeter)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showGMeter ? 'bg-tesla-red' : 'bg-gray-700'
+              <label className="flex items-center justify-between cursor-pointer group">
+                <div>
+                  <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">G-Meter</span>
+                  <p className="text-xs text-gray-500">Circular visualization of lateral/longitudinal G-forces</p>
+                </div>
+                <button
+                  onClick={() => onShowGMeterChange(!showGMeter)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${showGMeter ? 'bg-tesla-red shadow-[0_0_15px_rgba(232,33,39,0.4)]' : 'bg-gray-700'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${showGMeter ? 'translate-x-6' : 'translate-x-1'
                       }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showGMeter ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                    />
-                  </button>
-                </label>
+                  />
+                </button>
+              </label>
+            </div>
 
+            {/* Sub-section: Detailed Charts */}
+            <div className="space-y-3 pt-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest px-1">
+                Performance Charts
+              </label>
+
+              <div className="pl-4 space-y-4 border-l border-white/10">
                 {/* Acceleration Chart Toggle */}
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between cursor-pointer group">
                   <div>
-                    <span className="text-sm text-gray-300">Acceleration Chart</span>
-                    <p className="text-xs text-gray-500">Time-series graph of G-forces (last 10 seconds)</p>
+                    <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Acceleration History</span>
+                    <p className="text-xs text-gray-500">G-forces over the last 10 seconds</p>
                   </div>
                   <button
                     onClick={() => onShowAccelChartChange(!showAccelChart)}
@@ -145,17 +185,17 @@ export function SettingsDialog({
                       }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAccelChart ? 'translate-x-6' : 'translate-x-1'
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showAccelChart ? 'translate-x-6' : 'translate-x-1'
                         }`}
                     />
                   </button>
                 </label>
 
                 {/* Pedal Chart Toggle */}
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between cursor-pointer group">
                   <div>
-                    <span className="text-sm text-gray-300">Pedal Input Chart</span>
-                    <p className="text-xs text-gray-500">Throttle and brake pedal positions over time</p>
+                    <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Pedal Input</span>
+                    <p className="text-xs text-gray-500">Accelerator and Brake telemetry</p>
                   </div>
                   <button
                     onClick={() => onShowPedalChartChange(!showPedalChart)}
@@ -163,17 +203,17 @@ export function SettingsDialog({
                       }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showPedalChart ? 'translate-x-6' : 'translate-x-1'
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showPedalChart ? 'translate-x-6' : 'translate-x-1'
                         }`}
                     />
                   </button>
                 </label>
 
                 {/* Speed Chart Toggle */}
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between cursor-pointer group">
                   <div>
-                    <span className="text-sm text-gray-300">Speed Chart</span>
-                    <p className="text-xs text-gray-500">Vehicle speed over time with gradient fill</p>
+                    <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Speed Analytics</span>
+                    <p className="text-xs text-gray-500">Detailed velocity graph</p>
                   </div>
                   <button
                     onClick={() => onShowSpeedChartChange(!showSpeedChart)}
@@ -181,17 +221,17 @@ export function SettingsDialog({
                       }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showSpeedChart ? 'translate-x-6' : 'translate-x-1'
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showSpeedChart ? 'translate-x-6' : 'translate-x-1'
                         }`}
                     />
                   </button>
                 </label>
 
                 {/* Debug Overlay Toggle */}
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between cursor-pointer group">
                   <div>
-                    <span className="text-sm text-gray-300">Debug Values</span>
-                    <p className="text-xs text-gray-500">Raw acceleration values for all axes</p>
+                    <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Raw Diagnostics</span>
+                    <p className="text-xs text-gray-500">Live XYZ acceleration data</p>
                   </div>
                   <button
                     onClick={() => onShowAccelDebugChange(!showAccelDebug)}
@@ -199,14 +239,61 @@ export function SettingsDialog({
                       }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAccelDebug ? 'translate-x-6' : 'translate-x-1'
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showAccelDebug ? 'translate-x-6' : 'translate-x-1'
                         }`}
                     />
                   </button>
                 </label>
               </div>
             </div>
-          )}
+          </div>
+
+          {/* Player Controls Section */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <label className="block text-sm font-medium text-gray-300">
+              Player Controls
+            </label>
+
+            <div className="bg-white/5 rounded-xl p-4 border border-white/5 space-y-4">
+              {/* Show Controls Toggle */}
+              <label className="flex items-center justify-between cursor-pointer group">
+                <div>
+                  <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">Show Playback UI</span>
+                  <p className="text-xs text-gray-500">Enable visibility of the timeline and buttons</p>
+                </div>
+                <button
+                  onClick={() => onShowControlsChange(!showControls)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${showControls ? 'bg-tesla-red shadow-[0_0_15px_rgba(232,33,39,0.4)]' : 'bg-gray-700'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${showControls ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </label>
+
+              {/* Auto-Hide Toggle */}
+              {showControls && (
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div>
+                    <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">Auto-Hide Controls</span>
+                    <p className="text-xs text-gray-500">Hide controls after 3s of inactivity</p>
+                  </div>
+                  <button
+                    onClick={() => onAutoHideControlsChange(!autoHideControls)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${autoHideControls ? 'bg-tesla-red shadow-[0_0_15px_rgba(232,33,39,0.4)]' : 'bg-gray-700'
+                      }`}
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${autoHideControls ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                    />
+                  </button>
+                </label>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

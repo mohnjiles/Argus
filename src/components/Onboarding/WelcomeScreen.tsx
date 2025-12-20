@@ -33,7 +33,7 @@ export function WelcomeScreen({ onOpenFolder, recentFolders, onOpenRecent }: Wel
             <div className="relative z-10 flex flex-col items-center max-w-2xl w-full px-6">
                 {/* Logo / Icon */}
                 <div
-                    className="relative group mb-12 cursor-pointer"
+                    className="relative group mb-8 cursor-pointer"
                     onMouseEnter={() => setIsHovering(true)}
                     onMouseLeave={() => setIsHovering(false)}
                     onClick={onOpenFolder}
@@ -42,9 +42,9 @@ export function WelcomeScreen({ onOpenFolder, recentFolders, onOpenRecent }: Wel
                     <div className="absolute inset-0 rounded-3xl bg-tesla-red opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-500 scale-150" />
                     <div className="absolute inset-0 rounded-3xl bg-tesla-red opacity-0 group-hover:opacity-10 blur-2xl transition-opacity duration-700 scale-125 animate-pulse" />
 
-                    <div className="w-32 h-32 bg-[#1a1a1a] rounded-3xl border border-white/10 shadow-2xl flex items-center justify-center relative backdrop-blur-sm group-hover:scale-105 transition-transform duration-300 group-hover:border-tesla-red/30">
+                    <div className="w-24 h-24 bg-[#1a1a1a] rounded-3xl border border-white/10 shadow-2xl flex items-center justify-center relative backdrop-blur-sm group-hover:scale-105 transition-transform duration-300 group-hover:border-tesla-red/30">
                         <svg
-                            className={`w-16 h-16 text-white/80 transition-all duration-300 ${isHovering ? 'scale-110 text-tesla-red drop-shadow-[0_0_15px_rgba(232,33,39,0.5)]' : ''}`}
+                            className={`w-12 h-12 text-white/80 transition-all duration-300 ${isHovering ? 'scale-110 text-tesla-red drop-shadow-[0_0_15px_rgba(232,33,39,0.5)]' : ''}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -63,18 +63,18 @@ export function WelcomeScreen({ onOpenFolder, recentFolders, onOpenRecent }: Wel
                 </div>
 
                 {/* Text Content */}
-                <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 text-center tracking-tight">
+                <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 text-center tracking-tight">
                     Argus
                 </h1>
-                <p className="text-lg text-gray-400 text-center max-w-lg mb-12">
+                <p className="text-base text-gray-400 text-center max-w-lg mb-8">
                     Advanced viewer for Tesla Dashcam and Sentry Mode clips.
-                    View all 4 cameras synced with telemetry data.
+                    View all camera angles synced with telemetry data.
                 </p>
 
                 {/* Main CTA */}
                 <button
                     onClick={onOpenFolder}
-                    className="group relative px-8 py-4 bg-white text-black rounded-full font-bold text-lg shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 transition-all duration-300 active:scale-95 mb-16 flex items-center gap-3"
+                    className="group relative px-6 py-3 bg-white text-black rounded-full font-bold text-lg shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 transition-all duration-300 active:scale-95 mb-10 flex items-center gap-3"
                 >
                     {/* Ping effect */}
                     <span className="absolute -inset-1 rounded-full bg-white/30 animate-pulse blur-sm group-hover:animate-none transition-all" />
@@ -95,10 +95,10 @@ export function WelcomeScreen({ onOpenFolder, recentFolders, onOpenRecent }: Wel
                                 <button
                                     key={folder.path}
                                     onClick={() => handleRecentClick(folder)}
-                                    className="group flex items-center p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left"
+                                    className="group flex items-center p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left"
                                 >
-                                    <div className="w-10 h-10 rounded-lg bg-[#222] flex items-center justify-center mr-4 group-hover:bg-tesla-red/20 transition-colors">
-                                        <svg className="w-5 h-5 text-gray-400 group-hover:text-tesla-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="w-8 h-8 rounded-lg bg-[#222] flex items-center justify-center mr-3 group-hover:bg-tesla-red/20 transition-colors">
+                                        <svg className="w-4 h-4 text-gray-400 group-hover:text-tesla-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                                         </svg>
                                     </div>
@@ -120,7 +120,7 @@ export function WelcomeScreen({ onOpenFolder, recentFolders, onOpenRecent }: Wel
                 )}
 
                 {/* Footer Hint */}
-                <div className="mt-16 text-sm text-gray-600 flex items-center gap-2">
+                <div className="mt-10 text-xs text-gray-600 flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>

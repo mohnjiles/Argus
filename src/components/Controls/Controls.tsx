@@ -64,7 +64,7 @@ export function Controls({
   const eventMarkerPosition = isEventClip && duration > 0 ? (eventTimeOffset! / duration) * 100 : 0;
 
   return (
-    <div className="px-4 py-3 pb-8 bg-[#0a0a0a] border-t border-white/5">
+    <div className="px-6 pt-2 pb-3 bg-transparent">
       {/* Clip Navigation Bar (for multi-clip events) */}
       {hasMultipleClips && (
         <div className="mb-2 flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-wider">
@@ -217,7 +217,7 @@ export function Controls({
       </div>
 
       {/* Control Buttons Cluster */}
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex items-center justify-between mt-1.5">
         {/* Left Side: Jump to Event */}
         <div className="flex-1 flex items-center">
           {hasEventMarker && onJumpToEvent && (
@@ -237,14 +237,14 @@ export function Controls({
         </div>
 
         {/* Center Cluster: Main Playback Navigation */}
-        <div className="flex items-center gap-4 px-6 py-2 bg-white/[0.03] border border-white/[0.05] rounded-full backdrop-blur-xl shadow-2xl">
+        <div className="flex items-center gap-3 px-4 py-1.5 bg-white/[0.03] border border-white/[0.05] rounded-full backdrop-blur-xl shadow-2xl">
           <button
             onClick={onJumpBackward}
             disabled={disabled}
-            className="group relative p-2.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-all active:scale-90"
+            className="group relative p-2 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-all active:scale-90"
             title="Jump back 10 seconds (J)"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
             <kbd className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/40 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">J</kbd>
@@ -254,7 +254,7 @@ export function Controls({
             onClick={onPlayPause}
             disabled={disabled}
             className={`
-              w-14 h-14 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 shadow-lg
+              w-11 h-11 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 shadow-lg
               ${isPlaying
                 ? 'bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:shadow-white/5'
                 : 'bg-gradient-to-br from-tesla-red to-[#b0181d] text-white shadow-tesla-red/20 ring-4 ring-tesla-red/10 hover:scale-110 hover:shadow-tesla-red/40 hover:brightness-110'
@@ -263,12 +263,12 @@ export function Controls({
             title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
           >
             {isPlaying ? (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="4" width="4" height="16" rx="1.5" />
                 <rect x="14" y="4" width="4" height="16" rx="1.5" />
               </svg>
             ) : (
-              <svg className="w-7 h-7 translate-x-[2.5px]" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M7 6v12l10-6z" />
               </svg>
             )}
@@ -277,10 +277,10 @@ export function Controls({
           <button
             onClick={onJumpForward}
             disabled={disabled}
-            className="group relative p-2.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-all active:scale-90"
+            className="group relative p-2 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-all active:scale-90"
             title="Jump forward 10 seconds (L)"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
             </svg>
             <kbd className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/40 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">L</kbd>

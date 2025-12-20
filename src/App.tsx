@@ -20,7 +20,11 @@ function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const fileSystem = useFileSystem()
   const playback = usePlayback()
-  const { settings, setSpeedUnit, setShowOverlay, setShowGMeter, setShowAccelChart, setShowPedalChart, setShowSpeedChart, setShowAccelDebug, resetSettings } = useSettings()
+  const { settings, setSpeedUnit, setShowOverlay, setShowGMeter, setShowAccelChart, setShowPedalChart, setShowSpeedChart, setShowAccelDebug, setShowMap, setShowControls, setAutoHideControls, resetSettings } = useSettings()
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const [isDraggingOverlay, setIsDraggingOverlay] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
+  const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [thumbCamera, setThumbCamera] = useState<CameraAngle>('front')
 
   // Ref to VideoPlayer for seeking
@@ -136,6 +140,66 @@ function App() {
 
   // Drag and drop support
   const { isDragging, dragHandlers } = useDragDrop({ onOpenFolder: handleOpenFolder })
+
+  // Auto-hide controls logic - Triggered by bottom hover
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!settings.showControls || !settings.autoHideControls || isDraggingOverlay) return
+
+    const container = mainRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const mouseY = e.clientY - rect.top
+    const isAtBottom = mouseY > rect.height * 0.7 // Bottom 30%
+
+    if (isAtBottom) {
+      setControlsVisible(true)
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current)
+        activityTimeoutRef.current = null
+      }
+    } else if (playback.isPlaying && controlsVisible) {
+      // Hide after a short delay when leaving bottom area
+      if (!activityTimeoutRef.current) {
+        activityTimeoutRef.current = setTimeout(() => {
+          setControlsVisible(false)
+          activityTimeoutRef.current = null
+        }, 1500)
+      }
+    }
+  }, [settings.showControls, settings.autoHideControls, playback.isPlaying, controlsVisible])
+
+  useEffect(() => {
+    if (!settings.autoHideControls) {
+      setControlsVisible(true)
+      return
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current)
+    }
+  }, [settings.autoHideControls, handleMouseMove])
+
+  // Handle controls visibility during playback changes
+  useEffect(() => {
+    if (!playback.isPlaying) {
+      setControlsVisible(true)
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current)
+        activityTimeoutRef.current = null
+      }
+    } else if (settings.autoHideControls && controlsVisible) {
+      // If playing and controls are visible, ensure they hide eventually
+      // even if the mouse doesn't move.
+      if (!activityTimeoutRef.current) {
+        activityTimeoutRef.current = setTimeout(() => {
+          setControlsVisible(false)
+          activityTimeoutRef.current = null
+        }, 3000)
+      }
+    }
+  }, [playback.isPlaying, settings.autoHideControls, controlsVisible])
 
   return (
     <div
@@ -263,8 +327,14 @@ function App() {
             )}
 
             {/* Video Area */}
-            <main className="flex-1 flex flex-col min-w-0 min-h-0">
-              <div className="flex-1 min-h-0 p-3">
+            <main
+              ref={mainRef}
+              className="flex-1 flex flex-col min-w-0 min-h-0 relative group/video overflow-hidden"
+            >
+              <div
+                className={`flex-1 min-h-0 p-3 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${controlsVisible && settings.showControls ? 'pb-[150px]' : 'pb-3'
+                  }`}
+              >
                 <VideoPlayer
                   ref={videoPlayerRef}
                   clip={playback.currentClip}
@@ -286,36 +356,72 @@ function App() {
                   showPedalChart={settings.showPedalChart}
                   showSpeedChart={settings.showSpeedChart}
                   showAccelDebug={settings.showAccelDebug}
+                  showMap={settings.showMap}
                   currentTime={playback.currentTime}
                   onSetAllCamerasVisible={playback.setAllCamerasVisible}
+                  onOverlayDragChange={setIsDraggingOverlay}
                 />
               </div>
 
-              {/* Controls */}
-              <div className="flex-shrink-0 border-t border-gray-800">
-                <Controls
-                  isPlaying={playback.isPlaying}
-                  currentTime={playback.currentTime}
-                  duration={playback.duration}
-                  clipIndex={playback.currentClipIndex}
-                  totalClips={playback.currentEvent?.clips.length ?? 1}
-                  eventClipIndex={playback.eventClipIndex}
-                  eventTimeOffset={playback.eventTimeOffset}
-                  onPlayPause={handlePlayPause}
-                  onSeek={handleSeek}
-                  onJumpForward={handleJumpForward}
-                  onJumpBackward={handleJumpBackward}
-                  onPrevClip={playback.prevClip}
-                  onNextClip={playback.nextClip}
-                  onSeekToClip={playback.seekToClip}
-                  onJumpToEvent={handleJumpToEvent}
-                  playbackSpeed={playback.playbackSpeed}
-                  onSpeedChange={handleSpeedChange}
-                  disabled={!playback.currentClip}
-                  currentClip={playback.currentClip ?? undefined}
-                  camera={thumbCamera}
-                  onCameraChange={setThumbCamera}
-                />
+              {/* Controls - Floating & Collapsible */}
+              {settings.showControls && (
+                <div
+                  className={`
+                    absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[95%] max-w-5xl
+                    transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
+                    ${controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none scale-95'}
+                  `}
+                  onMouseMove={(e) => e.stopPropagation()}
+                >
+                  <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden">
+                    <Controls
+                      isPlaying={playback.isPlaying}
+                      currentTime={playback.currentTime}
+                      duration={playback.duration}
+                      clipIndex={playback.currentClipIndex}
+                      totalClips={playback.currentEvent?.clips.length ?? 1}
+                      eventClipIndex={playback.eventClipIndex}
+                      eventTimeOffset={playback.eventTimeOffset}
+                      onPlayPause={handlePlayPause}
+                      onSeek={handleSeek}
+                      onJumpForward={handleJumpForward}
+                      onJumpBackward={handleJumpBackward}
+                      onPrevClip={playback.prevClip}
+                      onNextClip={playback.nextClip}
+                      onSeekToClip={playback.seekToClip}
+                      onJumpToEvent={handleJumpToEvent}
+                      playbackSpeed={playback.playbackSpeed}
+                      onSpeedChange={handleSpeedChange}
+                      disabled={!playback.currentClip}
+                      currentClip={playback.currentClip ?? undefined}
+                      camera={thumbCamera}
+                      onCameraChange={setThumbCamera}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Minimal Progress Bar & Hover Hint (visible when controls hidden) */}
+              <div
+                className={`
+                  absolute bottom-0 left-0 right-0 z-[90] transition-all duration-500
+                  ${!controlsVisible && playback.currentClip && settings.showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
+                `}
+              >
+                {/* Hover Hint Text */}
+                <div className="flex justify-center mb-2">
+                  <div className="px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/5 text-[9px] font-bold text-white/30 tracking-[0.15em] uppercase pointer-events-none">
+                    Hover for Controls
+                  </div>
+                </div>
+
+                {/* Progress Line */}
+                <div className="h-1 bg-white/5 w-full">
+                  <div
+                    className="h-full bg-tesla-red shadow-[0_0_8px_rgba(232,33,39,0.8)] transition-opacity duration-300"
+                    style={{ width: `${playback.duration > 0 ? (playback.currentTime / playback.duration) * 100 : 0}%` }}
+                  />
+                </div>
               </div>
             </main>
           </>
@@ -353,6 +459,12 @@ function App() {
           onShowPedalChartChange={setShowPedalChart}
           onShowSpeedChartChange={setShowSpeedChart}
           onShowAccelDebugChange={setShowAccelDebug}
+          showMap={settings.showMap}
+          onShowMapChange={setShowMap}
+          showControls={settings.showControls}
+          onShowControlsChange={setShowControls}
+          autoHideControls={settings.autoHideControls}
+          onAutoHideControlsChange={setAutoHideControls}
           onReset={resetSettings}
           onClose={() => setShowSettingsDialog(false)}
         />

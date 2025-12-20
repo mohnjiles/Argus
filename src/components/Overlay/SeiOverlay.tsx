@@ -46,136 +46,121 @@ export function SeiOverlay({ data, speedUnit }: SeiOverlayProps) {
   };
 
   return (
-    <div className="bg-black/85 backdrop-blur-md rounded-xl p-4 text-white shadow-2xl border border-white/10 min-w-[280px] pointer-events-auto">
-      {/* Header Row: Speed + Gear + Autopilot */}
-      <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/10">
+    <div className="bg-black/40 backdrop-blur-xl rounded-full px-4 py-2 text-white shadow-2xl border border-white/10 pointer-events-auto flex items-center gap-4">
+      {/* Group 1: Speed & Gear */}
+      <div className="flex items-center gap-3">
         {/* Speed */}
-        <div className="flex-1">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-bold tabular-nums leading-none">{Math.round(speed)}</span>
-            <span className="text-sm text-gray-400 uppercase font-medium">{speedUnit}</span>
-          </div>
+        <div className="flex items-baseline gap-1">
+          <span className="text-3xl font-bold tabular-nums leading-none tracking-tight">{Math.round(speed)}</span>
+          <span className="text-[10px] text-gray-400 uppercase font-bold">{speedUnit}</span>
         </div>
 
-        {/* Gear */}
-        <div className="w-14 h-11 flex items-center justify-center bg-gray-700/80 rounded-lg">
-          <span className="text-xl font-bold">{gear}</span>
-        </div>
-
-        {/* Autopilot State */}
-        <div className={`px-3 h-11 flex items-center justify-center rounded-lg text-xs font-semibold whitespace-nowrap ${getAutopilotStyle()}`}>
-          {autopilotLabel}
+        {/* Compact Gear */}
+        <div className="w-7 h-7 flex items-center justify-center bg-white/10 rounded-full border border-white/5">
+          <span className="text-xs font-black">{gear}</span>
         </div>
       </div>
 
-      {/* Telemetry Grid */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      {/* Divider */}
+      <div className="w-px h-6 bg-white/10" />
+
+      {/* Group 2: Autopilot */}
+      <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${getAutopilotStyle()}`}>
+        {autopilotLabel}
+      </div>
+
+      {/* Divider */}
+      <div className="w-px h-6 bg-white/10" />
+
+      {/* Group 3: Metrics Row */}
+      <div className="flex items-center gap-5">
         {/* Steering */}
-        <div className="flex items-center gap-2.5">
-          <SteeringIcon angle={data.steeringWheelAngle} />
-          <div className="flex-1">
-            <div className="text-gray-400 text-xs font-medium">Steering</div>
-            <div className="font-semibold tabular-nums">{data.steeringWheelAngle.toFixed(1)}°</div>
-          </div>
+        <div className="flex items-center gap-2">
+          <SteeringIcon angle={data.steeringWheelAngle} size={16} />
+          <span className="text-xs font-bold tabular-nums">{data.steeringWheelAngle.toFixed(0)}°</span>
         </div>
 
         {/* Accelerator */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 flex items-center justify-center bg-gray-700/50 rounded-lg">
-            <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L4 12h5v10h6V12h5z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <div className="text-gray-400 text-xs font-medium">Throttle</div>
-            <div className="font-semibold tabular-nums">{data.acceleratorPedalPosition.toFixed(0)}%</div>
-          </div>
+        <div className="flex items-center gap-2 text-green-400">
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2L4 12h5v10h6V12h5z" />
+          </svg>
+          <span className="text-xs font-bold tabular-nums">{data.acceleratorPedalPosition.toFixed(0)}%</span>
         </div>
 
         {/* Brake */}
-        <div className="flex items-center gap-2.5">
-          <div className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${data.brakeApplied ? 'bg-red-500' : 'bg-gray-700/50'
-            }`}>
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="8" width="12" height="8" rx="1" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <div className="text-gray-400 text-xs font-medium">Brake</div>
-            <div className={`font-semibold ${data.brakeApplied ? 'text-red-400' : 'text-gray-300'}`}>
-              {data.brakeApplied ? 'Applied' : 'Released'}
-            </div>
-          </div>
+        <div className={`flex items-center gap-2 ${data.brakeApplied ? 'text-red-500 underline decoration-2 underline-offset-4' : 'text-gray-500'}`}>
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <rect x="6" y="8" width="12" height="8" rx="1" />
+          </svg>
+          <span className="text-xs font-bold">{data.brakeApplied ? 'ON' : 'OFF'}</span>
         </div>
 
         {/* Turn Signals */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 flex items-center justify-center gap-0.5">
-            <TurnSignal active={data.blinkerOnLeft} direction="left" />
-            <TurnSignal active={data.blinkerOnRight} direction="right" />
-          </div>
-          <div className="flex-1">
-            <div className="text-gray-400 text-xs font-medium">Signals</div>
-            <div className="font-semibold">
-              {data.blinkerOnLeft && data.blinkerOnRight
-                ? 'Hazard'
-                : data.blinkerOnLeft
-                  ? 'Left'
-                  : data.blinkerOnRight
-                    ? 'Right'
-                    : 'Off'}
-            </div>
-          </div>
+        <div className="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded-lg">
+          <TurnSignal active={data.blinkerOnLeft} direction="left" />
+          <TurnSignal active={data.blinkerOnRight} direction="right" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface MapOverlayProps {
+  data: SeiMetadata;
+  position?: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+}
+
+export function MapOverlay({ data }: MapOverlayProps) {
+  if (data.latitudeDeg === 0 && data.longitudeDeg === 0) return null;
+
+  return (
+    <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-2 text-white shadow-2xl border border-white/10 w-[300px] overflow-hidden">
+      {/* Header / Drag Handle */}
+      <div className="map-drag-handle flex items-center justify-between gap-2 text-[10px] mb-1.5 px-1 cursor-move hover:bg-white/5 rounded-lg py-1 transition-colors">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <svg className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="font-mono text-gray-300 truncate whitespace-nowrap">
+            {data.latitudeDeg.toFixed(6)}, {data.longitudeDeg.toFixed(6)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-2">
+          <CompassIcon heading={data.headingDeg} />
+          <span className="font-mono text-gray-300">{data.headingDeg.toFixed(0)}°</span>
         </div>
       </div>
 
-      {/* GPS Section */}
-      {(data.latitudeDeg !== 0 || data.longitudeDeg !== 0) && (
-        <div className="mt-3 pt-3 border-t border-white/10">
-          <div className="flex items-center gap-2 text-xs mb-2">
-            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="font-mono text-gray-300">
-              {data.latitudeDeg.toFixed(6)}, {data.longitudeDeg.toFixed(6)}
-            </span>
-            <span className="text-gray-500">|</span>
-            <CompassIcon heading={data.headingDeg} />
-            <span className="font-mono text-gray-300">{data.headingDeg.toFixed(0)}°</span>
-          </div>
-
-          {/* MiniMap */}
-          <div className="h-48 w-full rounded-lg overflow-hidden border border-white/10 relative z-10">
-            <MiniMap
-              lat={data.latitudeDeg}
-              long={data.longitudeDeg}
-              heading={data.headingDeg}
-            />
-          </div>
-        </div>
-      )}
+      <div className="h-48 w-full rounded-lg overflow-hidden border border-white/10 relative z-10 bg-gray-900/50">
+        <MiniMap
+          lat={data.latitudeDeg}
+          long={data.longitudeDeg}
+          heading={data.headingDeg}
+        />
+      </div>
     </div>
   );
 }
 
 // Steering wheel icon that rotates using PNG image
-function SteeringIcon({ angle }: { angle: number }) {
-  // Tesla steering wheels have ~900° of rotation (2.5 turns lock-to-lock)
-  // Show the full rotation without clamping
+function SteeringIcon({ angle, size = 20 }: { angle: number; size?: number }) {
   return (
-    <div className="w-7 h-7 flex items-center justify-center bg-gray-700/50 rounded-lg">
+    <div
+      className="flex items-center justify-center bg-gray-700/50 rounded-full"
+      style={{ width: size + 8, height: size + 8 }}
+    >
       <img
         src="/wheel.png"
-        alt="Steering wheel"
-        className="w-5 h-5 object-contain opacity-90"
-        draggable={false}
+        alt="Steering Wheel"
         style={{
+          width: size,
+          height: size,
           transform: `rotate(${angle}deg)`,
-          // Smooth out the rotation with a longer transition and cubic-bezier easing
-          transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          willChange: 'transform',
+          transition: 'transform 0.1s ease-out',
         }}
+        className="brightness-0 invert opacity-80"
       />
     </div>
   );
@@ -412,10 +397,10 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const size = 140;
+    const size = 120; // Slightly smaller
     const center = size / 2;
     const maxG = 1.0;
-    const scale = (center - 15) / maxG;
+    const scale = (center - 12) / maxG;
 
     const animate = () => {
       const realNow = Date.now();
@@ -448,8 +433,8 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
       // Clear canvas
       ctx.clearRect(0, 0, size, size);
 
-      // Draw background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      // Draw background - more transparent
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.beginPath();
       ctx.arc(center, center, center - 2, 0, Math.PI * 2);
       ctx.fill();
@@ -465,7 +450,7 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
       });
 
       // Draw crosshairs
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(center, 10);
@@ -474,12 +459,12 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
       ctx.lineTo(size - 10, center);
       ctx.stroke();
 
-      // Draw labels
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '9px system-ui';
+      // Draw labels - smaller
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = '8px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('BRAKE', center, 18);
-      ctx.fillText('ACCEL', center, size - 10);
+      ctx.fillText('BRK', center, 14);
+      ctx.fillText('ACC', center, size - 6);
       ctx.textAlign = 'left';
       ctx.fillText('L', 8, center + 3);
       ctx.textAlign = 'right';
@@ -491,14 +476,14 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
         for (let i = 1; i < trail.length; i++) {
           const p = trail[i];
           const age = (now - p.time) / 1000;
-          const alpha = Math.max(0, 0.6 - age * 0.6);
+          const alpha = Math.max(0, 0.4 - age * 0.4);
 
           const x = center + p.x * scale;
           const y = center - p.y * scale;
 
           ctx.fillStyle = `rgba(147, 51, 234, ${alpha})`;
           ctx.beginPath();
-          ctx.arc(x, y, 2, 0, Math.PI * 2);
+          ctx.arc(x, y, 1.5, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -507,10 +492,10 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
       if (peakRef.current.magnitude > 0.1) {
         const peakX = center + peakRef.current.x * scale;
         const peakY = center - peakRef.current.y * scale;
-        ctx.strokeStyle = 'rgba(251, 146, 60, 0.7)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.5)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(peakX, peakY, 5, 0, Math.PI * 2);
+        ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
         ctx.stroke();
       }
 
@@ -520,24 +505,24 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
       const dotColor = getGDotColor(displayMagnitudeRef.current);
 
       // Glow effect
-      const gradient = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, 12);
+      const gradient = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, 10);
       gradient.addColorStop(0, dotColor);
       gradient.addColorStop(1, 'transparent');
       ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.arc(dotX, dotY, 12, 0, Math.PI * 2);
+      ctx.arc(dotX, dotY, 10, 0, Math.PI * 2);
       ctx.fill();
 
       // Solid dot
       ctx.fillStyle = dotColor;
       ctx.beginPath();
-      ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+      ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
       ctx.fill();
 
       // White center
       ctx.fillStyle = 'white';
       ctx.beginPath();
-      ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
+      ctx.arc(dotX, dotY, 1.5, 0, Math.PI * 2);
       ctx.fill();
 
       // Continue animation loop
@@ -554,12 +539,12 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
   }, [paused]); // Re-run when pause state changes
 
   return (
-    <div className="bg-black/85 backdrop-blur-md rounded-xl p-3 text-white shadow-2xl border border-white/10">
+    <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-2.5 text-white shadow-2xl border border-white/10">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-400">G-FORCE</span>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">G-FORCE</span>
         <span
-          className="text-sm font-bold tabular-nums"
+          className="text-xs font-bold tabular-nums"
           style={{ color: getGDotColor(magnitude) }}
         >
           {magnitude.toFixed(2)} G
@@ -569,28 +554,28 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
       {/* Canvas */}
       <canvas
         ref={canvasRef}
-        width={140}
-        height={140}
+        width={120}
+        height={120}
         className="block"
       />
 
       {/* Values row */}
-      <div className="flex justify-between mt-2 text-xs">
+      <div className="flex justify-between mt-1.5 text-[9px]">
         <div className="text-center">
           <div className="text-gray-500">Long</div>
-          <div className={`font-mono font-semibold ${gLong >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+          <div className={`font-mono font-bold ${gLong >= 0 ? 'text-red-400' : 'text-green-400'}`}>
             {gLong >= 0 ? '+' : ''}{gLong.toFixed(2)}
           </div>
         </div>
         <div className="text-center">
           <div className="text-gray-500">Lat</div>
-          <div className="font-mono font-semibold text-blue-400">
+          <div className="font-mono font-bold text-blue-400">
             {gLat >= 0 ? '+' : ''}{gLat.toFixed(2)}
           </div>
         </div>
         <div className="text-center">
           <div className="text-gray-500">Peak</div>
-          <div className="font-mono font-semibold text-orange-400">
+          <div className="font-mono font-bold text-orange-400">
             {peakRef.current.magnitude.toFixed(2)}
           </div>
         </div>
@@ -683,24 +668,24 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
       ctx.clearRect(0, 0, width, height);
 
       // Background - use the full canvas
-      ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.4)';
       ctx.beginPath();
-      ctx.roundRect(0, 0, width, height, 6);
+      ctx.roundRect(0, 0, width, height, 8);
       ctx.fill();
 
       // Subtle border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
       // Minimal padding to maximize chart area
-      const pad = 5;
+      const pad = 4;
       const chartWidth = width - pad * 2;
       const chartHeight = height - pad * 2;
       const zeroY = pad + chartHeight / 2;
 
       // Zero line (for reference)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(pad, zeroY);
@@ -726,7 +711,7 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         // Draw longitudinal (red for brake/accel) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         let started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
@@ -743,7 +728,7 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         // Draw lateral (blue) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
@@ -759,21 +744,21 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
       }
 
       // Compact legend overlay (top-left corner, inside chart)
-      ctx.font = 'bold 10px system-ui';
+      ctx.font = 'bold 9px system-ui';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
       // Semi-transparent background for legend
       const legendText = 'LNG / LAT';
       const textWidth = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(pad, pad, textWidth + 6, 14);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(pad, pad, textWidth + 6, 12);
 
       // Draw legend with colors
       ctx.fillStyle = '#f87171';
       ctx.fillText('LNG', pad + 2, pad + 2);
       const lngWidth = ctx.measureText('LNG').width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.fillText(' / ', pad + 2 + lngWidth, pad + 2);
       const slashWidth = ctx.measureText(' / ').width;
       ctx.fillStyle = '#60a5fa';
@@ -792,11 +777,11 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
   }, [paused]); // Re-run when pause state changes
 
   return (
-    <div className="bg-black/85 backdrop-blur-md rounded-xl p-2 text-white shadow-2xl border border-white/10">
+    <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
       <canvas
         ref={canvasRef}
-        width={200}
-        height={100}
+        width={180}
+        height={80}
         className="block rounded"
       />
     </div>
@@ -842,8 +827,8 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = 200;
-    const height = 100;
+    const width = 180;
+    const height = 80;
 
     const animate = () => {
       const realNow = Date.now();
@@ -950,17 +935,17 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
       // Semi-transparent background for legend
       const legendText = 'THR / BRK';
       const textWidth = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(pad, pad, textWidth + 6, 14);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(pad, pad, textWidth + 6, 12);
 
       // Draw legend with colors
       ctx.fillStyle = '#4ade80';
       ctx.fillText('THR', pad + 2, pad + 2);
       const thrWidth = ctx.measureText('THR').width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.fillText(' / ', pad + 2 + thrWidth, pad + 2);
       const slashWidth = ctx.measureText(' / ').width;
-      ctx.fillStyle = '#ef4444';
+      ctx.fillStyle = '#f87171';
       ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 2);
 
       // Continue animation
@@ -1025,8 +1010,8 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = 200;
-    const height = 100;
+    const width = 180;
+    const height = 80;
 
     const animate = () => {
       const realNow = Date.now();
@@ -1069,18 +1054,18 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
       ctx.clearRect(0, 0, width, height);
 
       // Background - use the full canvas
-      ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.4)';
       ctx.beginPath();
-      ctx.roundRect(0, 0, width, height, 6);
+      ctx.roundRect(0, 0, width, height, 8);
       ctx.fill();
 
       // Subtle border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
       // Minimal padding to maximize chart area
-      const pad = 5;
+      const pad = 4;
       const chartWidth = width - pad * 2;
       const chartHeight = height - pad * 2;
 
@@ -1138,7 +1123,7 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
         // Draw speed line (cyan) - thicker
         ctx.beginPath();
         ctx.strokeStyle = '#22d3ee';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         let started = false;
         history.forEach(p => {
           const x = toCanvasX(p.time);
@@ -1154,15 +1139,15 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
       }
 
       // Compact legend overlay (top-left corner, inside chart)
-      ctx.font = 'bold 10px system-ui';
+      ctx.font = 'bold 9px system-ui';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
       // Semi-transparent background for legend
       const legendText = `SPD ${speedUnit.toUpperCase()}`;
       const textWidth = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(pad, pad, textWidth + 6, 14);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(pad, pad, textWidth + 6, 12);
 
       ctx.fillStyle = '#22d3ee';
       ctx.fillText(legendText, pad + 2, pad + 2);
@@ -1180,11 +1165,11 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
   }, [speedUnit, paused]);
 
   return (
-    <div className="bg-black/85 backdrop-blur-md rounded-xl p-2 text-white shadow-2xl border border-white/10">
+    <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
       <canvas
         ref={canvasRef}
-        width={200}
-        height={100}
+        width={180}
+        height={80}
         className="block rounded"
       />
     </div>

@@ -284,7 +284,7 @@ export function ExportDialog({
   }, [clip, selectedCameras, includeOverlay, includeCharts, hideLocation, exportMode, quality, videoCodec, exportRange, startTime, endTime, duration, onClose, exportScope, event, hasMultipleClips, rangeStart, rangeEnd, absoluteTimeToClipTime]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-[#1a1a1a] rounded-2xl shadow-2xl w-full max-w-4xl mx-4 border border-gray-700/50 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">

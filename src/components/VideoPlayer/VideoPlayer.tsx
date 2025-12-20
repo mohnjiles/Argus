@@ -11,7 +11,7 @@ import 'react-resizable/css/styles.css';
 import type { ClipGroup, CameraAngle, SeiMetadata, SpeedUnit } from '../../types';
 import { CAMERA_ANGLES, CAMERA_LABELS } from '../../types';
 import { CameraView, CameraViewHandle } from './CameraView';
-import { SeiOverlay, AccelDebugOverlay, GMeter, AccelChart, PedalChart, SpeedChart } from '../Overlay/SeiOverlay';
+import { SeiOverlay, AccelDebugOverlay, GMeter, AccelChart, PedalChart, SpeedChart, MapOverlay } from '../Overlay/SeiOverlay';
 import type { OverlayPosition } from '../../hooks/useSettings';
 
 export interface VideoPlayerHandle {
@@ -38,8 +38,10 @@ interface VideoPlayerProps {
   showPedalChart: boolean;
   showSpeedChart: boolean;
   showAccelDebug: boolean;
+  showMap: boolean;
   currentTime?: number; // Current playback time in ms for charts
   onSetAllCamerasVisible?: (visible: boolean) => void;
+  onOverlayDragChange?: (isDragging: boolean) => void;
 }
 
 // Create dynamic layout based on visible cameras
@@ -133,8 +135,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   showPedalChart,
   showSpeedChart,
   showAccelDebug,
+  showMap,
   currentTime = 0,
   onSetAllCamerasVisible,
+  onOverlayDragChange,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRefs = useRef<Map<CameraAngle, CameraViewHandle>>(new Map());
@@ -144,6 +148,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   // Refs for draggable overlays to avoid StrictMode warnings
   const seiOverlayRef = useRef<HTMLDivElement>(null);
   const chartsOverlayRef = useRef<HTMLDivElement>(null);
+  const mapOverlayRef = useRef<HTMLDivElement>(null);
 
   // Expose seekAll to parent
   useImperativeHandle(ref, () => ({
@@ -401,25 +406,34 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         )}
 
 
-        {/* SEI Overlay */}
+        {/* SEI Overlay (Centered at top by default) */}
         {showOverlay && localSeiData && (
-          <Draggable bounds="parent" nodeRef={seiOverlayRef}>
+          <Draggable
+            bounds="parent"
+            nodeRef={seiOverlayRef}
+            onStart={() => onOverlayDragChange?.(true)}
+            onStop={() => onOverlayDragChange?.(false)}
+          >
             <div
               ref={seiOverlayRef}
-              className={`absolute z-20 cursor-move ${overlayPosition === 'top-left' ? 'top-4 left-4' :
-                overlayPosition === 'top-right' ? 'top-4 right-4' :
-                  overlayPosition === 'bottom-right' ? 'bottom-4 right-4' :
-                    'bottom-4 left-4' // default bottom-left
-                }`}
+              className="absolute top-6 left-1/2 z-30 cursor-move pointer-events-auto"
             >
-              <SeiOverlay data={localSeiData} speedUnit={speedUnit} position={overlayPosition} />
+              {/* Internal wrapper to handle centering without interfering with Draggable's transform */}
+              <div className="-translate-x-1/2">
+                <SeiOverlay data={localSeiData} speedUnit={speedUnit} position={overlayPosition} />
+              </div>
             </div>
           </Draggable>
         )}
 
         {/* G-Force Overlays - horizontal layout, positioned to minimize video blocking */}
-        {showOverlay && localSeiData && (showGMeter || showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
-          <Draggable bounds="parent" nodeRef={chartsOverlayRef}>
+        {localSeiData && (showGMeter || showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
+          <Draggable
+            bounds="parent"
+            nodeRef={chartsOverlayRef}
+            onStart={() => onOverlayDragChange?.(true)}
+            onStop={() => onOverlayDragChange?.(false)}
+          >
             <div
               ref={chartsOverlayRef}
               className={`absolute z-20 cursor-move flex gap-2 items-start ${overlayPosition === 'top-left' ? 'top-4 right-4' :
@@ -444,6 +458,28 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                   {showAccelDebug && <AccelDebugOverlay data={localSeiData} />}
                 </div>
               )}
+            </div>
+          </Draggable>
+        )}
+
+        {/* Map Overlay */}
+        {showMap && localSeiData && (
+          <Draggable
+            bounds="parent"
+            nodeRef={mapOverlayRef}
+            handle=".map-drag-handle"
+            onStart={() => onOverlayDragChange?.(true)}
+            onStop={() => onOverlayDragChange?.(false)}
+          >
+            <div
+              ref={mapOverlayRef}
+              className={`absolute z-20 ${overlayPosition === 'top-left' ? 'bottom-4 right-4' :
+                overlayPosition === 'top-right' ? 'bottom-4 left-4' :
+                  overlayPosition === 'bottom-right' ? 'top-4 left-4' :
+                    'top-4 right-4' // opposite of default bottom-left
+                }`}
+            >
+              <MapOverlay data={localSeiData} position={overlayPosition} />
             </div>
           </Draggable>
         )}

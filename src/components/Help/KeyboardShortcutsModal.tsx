@@ -28,7 +28,7 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div
                 ref={modalRef}
                 className="bg-[#0f0f0f] border border-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"

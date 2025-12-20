@@ -17,6 +17,9 @@ interface Settings {
   showPedalChart: boolean;
   showSpeedChart: boolean;
   showAccelDebug: boolean;
+  showMap: boolean;
+  showControls: boolean;
+  autoHideControls: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -28,6 +31,9 @@ const DEFAULT_SETTINGS: Settings = {
   showPedalChart: false,
   showSpeedChart: false,
   showAccelDebug: false,
+  showMap: true,
+  showControls: true,
+  autoHideControls: true,
 };
 
 const SETTINGS_KEY = 'argus-settings';
@@ -86,6 +92,18 @@ export function useSettings() {
     setSettings(prev => ({ ...prev, showAccelDebug: show }));
   }, []);
 
+  const setShowMap = useCallback((show: boolean) => {
+    setSettings(prev => ({ ...prev, showMap: show }));
+  }, []);
+
+  const setShowControls = useCallback((show: boolean) => {
+    setSettings(prev => ({ ...prev, showControls: show }));
+  }, []);
+
+  const setAutoHideControls = useCallback((autoHide: boolean) => {
+    setSettings(prev => ({ ...prev, autoHideControls: autoHide }));
+  }, []);
+
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_SETTINGS);
   }, []);
@@ -100,6 +118,9 @@ export function useSettings() {
     setShowPedalChart,
     setShowSpeedChart,
     setShowAccelDebug,
+    setShowMap,
+    setShowControls,
+    setAutoHideControls,
     resetSettings,
   };
 }
