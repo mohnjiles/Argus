@@ -20,7 +20,7 @@ function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const fileSystem = useFileSystem()
   const playback = usePlayback()
-  const { settings, setSpeedUnit, setOverlayPosition, setShowOverlay, setShowGMeter, setShowAccelChart, setShowPedalChart, setShowSpeedChart, setShowAccelDebug, resetSettings } = useSettings()
+  const { settings, setSpeedUnit, setShowOverlay, setShowGMeter, setShowAccelChart, setShowPedalChart, setShowSpeedChart, setShowAccelDebug, resetSettings } = useSettings()
   const [thumbCamera, setThumbCamera] = useState<CameraAngle>('front')
 
   // Ref to VideoPlayer for seeking
@@ -340,7 +340,6 @@ function App() {
       {showSettingsDialog && (
         <SettingsDialog
           speedUnit={settings.speedUnit}
-          overlayPosition={settings.overlayPosition}
           showOverlay={settings.showOverlay}
           showGMeter={settings.showGMeter}
           showAccelChart={settings.showAccelChart}
@@ -348,7 +347,6 @@ function App() {
           showSpeedChart={settings.showSpeedChart}
           showAccelDebug={settings.showAccelDebug}
           onSpeedUnitChange={setSpeedUnit}
-          onOverlayPositionChange={setOverlayPosition}
           onShowOverlayChange={setShowOverlay}
           onShowGMeterChange={setShowGMeter}
           onShowAccelChartChange={setShowAccelChart}

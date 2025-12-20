@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
+import Draggable from 'react-draggable';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -139,6 +140,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const cameraRefs = useRef<Map<CameraAngle, CameraViewHandle>>(new Map());
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [localSeiData, setLocalSeiData] = useState<SeiMetadata | null>(null);
+
+  // Refs for draggable overlays to avoid StrictMode warnings
+  const seiOverlayRef = useRef<HTMLDivElement>(null);
+  const chartsOverlayRef = useRef<HTMLDivElement>(null);
 
   // Expose seekAll to parent
   useImperativeHandle(ref, () => ({
@@ -395,45 +400,52 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           </div>
         )}
 
+
         {/* SEI Overlay */}
         {showOverlay && localSeiData && (
-          <div
-            className={`absolute z-20 pointer-events-none ${overlayPosition === 'top-left' ? 'top-4 left-4' :
-              overlayPosition === 'top-right' ? 'top-4 right-4' :
-                overlayPosition === 'bottom-right' ? 'bottom-4 right-4' :
-                  'bottom-4 left-4' // default bottom-left
-              }`}
-          >
-            <SeiOverlay data={localSeiData} speedUnit={speedUnit} position={overlayPosition} />
-          </div>
+          <Draggable bounds="parent" nodeRef={seiOverlayRef}>
+            <div
+              ref={seiOverlayRef}
+              className={`absolute z-20 cursor-move ${overlayPosition === 'top-left' ? 'top-4 left-4' :
+                overlayPosition === 'top-right' ? 'top-4 right-4' :
+                  overlayPosition === 'bottom-right' ? 'bottom-4 right-4' :
+                    'bottom-4 left-4' // default bottom-left
+                }`}
+            >
+              <SeiOverlay data={localSeiData} speedUnit={speedUnit} position={overlayPosition} />
+            </div>
+          </Draggable>
         )}
 
         {/* G-Force Overlays - horizontal layout, positioned to minimize video blocking */}
         {showOverlay && localSeiData && (showGMeter || showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
-          <div
-            className={`absolute z-20 pointer-events-none flex gap-2 items-start ${overlayPosition === 'top-left' ? 'top-4 right-4' :
-              overlayPosition === 'top-right' ? 'top-4 left-4' :
-                overlayPosition === 'bottom-right' ? 'bottom-4 left-4 items-end' :
-                  'bottom-4 right-4 items-end' // opposite of default bottom-left
-              }`}
-          >
-            {/* G-Meter on the left - align to top of container */}
-            {showGMeter && (
-              <div className="self-start">
-                <GMeter data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />
-              </div>
-            )}
+          <Draggable bounds="parent" nodeRef={chartsOverlayRef}>
+            <div
+              ref={chartsOverlayRef}
+              className={`absolute z-20 cursor-move flex gap-2 items-start ${overlayPosition === 'top-left' ? 'top-4 right-4' :
+                overlayPosition === 'top-right' ? 'top-4 left-4' :
+                  overlayPosition === 'bottom-right' ? 'bottom-4 left-4 items-end' :
+                    'bottom-4 right-4 items-end' // opposite of default bottom-left
+                }`}
+            >
+              {/* G-Meter on the left - align to top of container */}
+              {showGMeter && (
+                <div className="self-start">
+                  <GMeter data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />
+                </div>
+              )}
 
-            {/* Charts stacked vertically on the right */}
-            {(showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
-              <div className="flex flex-col gap-2">
-                {showAccelChart && <AccelChart data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />}
-                {showPedalChart && <PedalChart data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />}
-                {showSpeedChart && <SpeedChart data={localSeiData} speedUnit={speedUnit} paused={!isPlaying} videoTimestamp={currentTime * 1000} />}
-                {showAccelDebug && <AccelDebugOverlay data={localSeiData} />}
-              </div>
-            )}
-          </div>
+              {/* Charts stacked vertically on the right */}
+              {(showAccelChart || showPedalChart || showSpeedChart || showAccelDebug) && (
+                <div className="flex flex-col gap-2">
+                  {showAccelChart && <AccelChart data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />}
+                  {showPedalChart && <PedalChart data={localSeiData} paused={!isPlaying} videoTimestamp={currentTime * 1000} />}
+                  {showSpeedChart && <SpeedChart data={localSeiData} speedUnit={speedUnit} paused={!isPlaying} videoTimestamp={currentTime * 1000} />}
+                  {showAccelDebug && <AccelDebugOverlay data={localSeiData} />}
+                </div>
+              )}
+            </div>
+          </Draggable>
         )}
       </div>
     </div>

@@ -4,11 +4,9 @@
  */
 
 import type { SpeedUnit } from '../../types';
-import type { OverlayPosition } from '../../hooks/useSettings';
 
 interface SettingsDialogProps {
   speedUnit: SpeedUnit;
-  overlayPosition: OverlayPosition;
   showOverlay: boolean;
   showGMeter: boolean;
   showAccelChart: boolean;
@@ -16,7 +14,6 @@ interface SettingsDialogProps {
   showSpeedChart: boolean;
   showAccelDebug: boolean;
   onSpeedUnitChange: (unit: SpeedUnit) => void;
-  onOverlayPositionChange: (position: OverlayPosition) => void;
   onShowOverlayChange: (show: boolean) => void;
   onShowGMeterChange: (show: boolean) => void;
   onShowAccelChartChange: (show: boolean) => void;
@@ -29,7 +26,6 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({
   speedUnit,
-  overlayPosition,
   showOverlay,
   showGMeter,
   showAccelChart,
@@ -37,7 +33,6 @@ export function SettingsDialog({
   showSpeedChart,
   showAccelDebug,
   onSpeedUnitChange,
-  onOverlayPositionChange,
   onShowOverlayChange,
   onShowGMeterChange,
   onShowAccelChartChange,
@@ -110,33 +105,7 @@ export function SettingsDialog({
             </label>
           </div>
 
-          {/* Overlay Position */}
-          {showOverlay && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                Overlay Position
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: 'top-left', label: 'Top Left' },
-                  { value: 'top-right', label: 'Top Right' },
-                  { value: 'bottom-left', label: 'Bottom Left' },
-                  { value: 'bottom-right', label: 'Bottom Right' },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => onOverlayPositionChange(option.value as OverlayPosition)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${overlayPosition === option.value
-                      ? 'bg-tesla-red text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* G-Force Overlays Section */}
           {showOverlay && (
