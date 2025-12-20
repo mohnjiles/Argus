@@ -234,146 +234,87 @@ export function drawSpeedChart(
     speedUnit: 'mph' | 'kph' = 'mph',
     slotIndex: number = 0
 ) {
-    // Dynamic scaling based on video width (1920px is the reference)
     const baseWidth = 1920;
     const scale = Math.min(videoWidth / baseWidth, 1);
     const scaledValue = (base: number) => Math.round(base * scale);
 
-    // Don't draw chart if no slots available
-    if (getChartSlotCount(videoWidth) === 0) {
-        return;
-    }
+    if (getChartSlotCount(videoWidth) === 0) return;
 
-    // Chart dimensions - optimized for maximum data visibility
     const chartWidth = scaledValue(170);
     const chartHeight = scaledValue(90);
-
-    // Minimal padding - maximize chart area
-    const padding = {
-        top: scaledValue(4),
-        right: scaledValue(4),
-        bottom: scaledValue(4),
-        left: scaledValue(4)
-    };
+    const padding = { top: scaledValue(4), right: scaledValue(4), bottom: scaledValue(4), left: scaledValue(4) };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
 
-    // Position in the bottom bar using slot system
     const stripHeight = scaledValue(120);
     const barY = videoHeight - stripHeight;
-
-    // Use slot-based positioning
     const chartX = getChartSlotPosition(slotIndex, videoWidth);
     const chartY = barY + (stripHeight - chartHeight) / 2;
 
-    // Save context state
     ctx.save();
     ctx.translate(chartX, chartY);
 
-    // Background with rounded corners
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+    // Background
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.4)';
     ctx.beginPath();
-    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(6));
+    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(12));
     ctx.fill();
-
-    // Subtle border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Calculate max speed for scaling (default to 80 mph / 130 kph)
     const defaultMax = speedUnit === 'mph' ? 80 : 130;
     const maxSpeed = Math.max(defaultMax, ...history.map(p => p.speed));
-
-    // Time range is 10 seconds
     const timeRange = 10000;
 
-    // Draw subtle grid lines (just a few horizontal)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1;
-    const gridSpeeds = speedUnit === 'mph' ? [40, 80] : [60, 120];
-    gridSpeeds.forEach(spd => {
-        const y = padding.top + innerHeight - (spd / maxSpeed) * innerHeight;
+    const toCanvasX = (timeOffset: number) => chartWidth - padding.right - ((currentTimeMs - timeOffset) / timeRange) * innerWidth;
+    const toCanvasY = (speed: number) => padding.top + innerHeight - (Math.min(speed, maxSpeed) / maxSpeed) * innerHeight;
+
+    const visibleHistory = history.filter(p => currentTimeMs - p.timeOffset <= timeRange);
+
+    if (visibleHistory.length >= 2) {
+        // Area fill
         ctx.beginPath();
-        ctx.moveTo(padding.left, y);
-        ctx.lineTo(chartWidth - padding.right, y);
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + innerHeight);
+        gradient.addColorStop(0, 'rgba(34, 211, 238, 0.25)');
+        gradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
+        ctx.fillStyle = gradient;
+        const firstX = toCanvasX(visibleHistory[0].timeOffset);
+        ctx.moveTo(firstX, padding.top + innerHeight);
+        visibleHistory.forEach(p => ctx.lineTo(toCanvasX(p.timeOffset), toCanvasY(p.speed)));
+        ctx.lineTo(toCanvasX(visibleHistory[visibleHistory.length - 1].timeOffset), padding.top + innerHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glowing Line
+        ctx.save();
+        ctx.shadowBlur = scaledValue(8);
+        ctx.shadowColor = 'rgba(34, 211, 238, 0.5)';
+        ctx.beginPath();
+        ctx.strokeStyle = '#22d3ee';
+        ctx.lineWidth = Math.max(2, scaledValue(2.5));
+        let started = false;
+        visibleHistory.forEach(p => {
+            const x = toCanvasX(p.timeOffset);
+            const y = toCanvasY(p.speed);
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+        });
         ctx.stroke();
-    });
-
-    // Draw speed data
-    if (history.length >= 2) {
-        const toCanvasX = (timeOffset: number) => {
-            const age = currentTimeMs - timeOffset;
-            return chartWidth - padding.right - (age / timeRange) * innerWidth;
-        };
-
-        const toCanvasY = (speed: number) => {
-            return padding.top + innerHeight - (Math.min(speed, maxSpeed) / maxSpeed) * innerHeight;
-        };
-
-        // Filter to visible history (last 10 seconds)
-        const visibleHistory = history.filter(p => currentTimeMs - p.timeOffset <= timeRange);
-
-        if (visibleHistory.length >= 2) {
-            // Draw filled area under the line
-            const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + innerHeight);
-            gradient.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
-            gradient.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
-
-            ctx.beginPath();
-            ctx.fillStyle = gradient;
-
-            const firstX = toCanvasX(visibleHistory[0].timeOffset);
-            const firstY = toCanvasY(visibleHistory[0].speed);
-            ctx.moveTo(firstX, padding.top + innerHeight);
-            ctx.lineTo(firstX, firstY);
-
-            visibleHistory.forEach(p => {
-                const x = toCanvasX(p.timeOffset);
-                const y = toCanvasY(p.speed);
-                ctx.lineTo(x, y);
-            });
-
-            const lastX = toCanvasX(visibleHistory[visibleHistory.length - 1].timeOffset);
-            ctx.lineTo(lastX, padding.top + innerHeight);
-            ctx.closePath();
-            ctx.fill();
-
-            // Draw speed line (cyan) - thicker for visibility
-            ctx.beginPath();
-            ctx.strokeStyle = '#22d3ee';
-            ctx.lineWidth = Math.max(2, scaledValue(3));
-            let started = false;
-            visibleHistory.forEach(p => {
-                const x = toCanvasX(p.timeOffset);
-                const y = toCanvasY(p.speed);
-                if (!started) {
-                    ctx.moveTo(x, y);
-                    started = true;
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            });
-            ctx.stroke();
-        }
+        ctx.restore();
     }
 
-    // Compact legend overlay (top-left corner, inside chart)
+    // Legend
     const legendPad = scaledValue(5);
-    ctx.font = `bold ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
+    ctx.font = `900 ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-
-    // Semi-transparent background for legend
-    const legendText = `SPD ${speedUnit.toUpperCase()}`;
+    const legendText = `SPEED (${speedUnit.toUpperCase()})`;
     const textWidth = ctx.measureText(legendText).width;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(legendPad - 2, legendPad - 1, textWidth + 4, scaledValue(12) + 2);
-
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(legendPad - 1, legendPad - 1, textWidth + 2, scaledValue(12) + 2);
     ctx.fillStyle = '#22d3ee';
     ctx.fillText(legendText, legendPad, legendPad);
 
-    // Restore context state
     ctx.restore();
 }
 
@@ -391,35 +332,22 @@ export function drawPedalChart(
     currentTimeMs: number,
     videoWidth: number,
     videoHeight: number,
-    slotIndex: number = 0  // Slot position for this chart
+    slotIndex: number = 0
 ) {
-    // Dynamic scaling based on video width
     const baseWidth = 1920;
     const scale = Math.min(videoWidth / baseWidth, 1);
     const scaledValue = (base: number) => Math.round(base * scale);
 
-    // Don't draw if no slots available
     if (getChartSlotCount(videoWidth) === 0) return;
 
-    // Chart dimensions - optimized for maximum data visibility
     const chartWidth = scaledValue(170);
     const chartHeight = scaledValue(90);
-
-    // Minimal padding - maximize chart area
-    const padding = {
-        top: scaledValue(4),
-        right: scaledValue(4),
-        bottom: scaledValue(4),
-        left: scaledValue(4)
-    };
+    const padding = { top: scaledValue(4), right: scaledValue(4), bottom: scaledValue(4), left: scaledValue(4) };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
 
-    // Position in the bottom bar using slot system
     const stripHeight = scaledValue(120);
     const barY = videoHeight - stripHeight;
-
-    // Use slot-based positioning
     const chartX = getChartSlotPosition(slotIndex, videoWidth);
     const chartY = barY + (stripHeight - chartHeight) / 2;
 
@@ -427,82 +355,86 @@ export function drawPedalChart(
     ctx.translate(chartX, chartY);
 
     // Background
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.4)';
     ctx.beginPath();
-    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(6));
+    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(12));
     ctx.fill();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    const timeRange = 10000; // 10 seconds
+    const timeRange = 10000;
+    const toCanvasX = (timeOffset: number) => chartWidth - padding.right - ((currentTimeMs - timeOffset) / timeRange) * innerWidth;
+    const toCanvasY = (throttle: number) => padding.top + innerHeight - (throttle / 100) * innerHeight;
 
-    // Filter to visible history
     const visibleHistory = history.filter(p => currentTimeMs - p.timeOffset <= timeRange);
 
     if (visibleHistory.length >= 2) {
-        const toCanvasX = (timeOffset: number) => {
-            const age = currentTimeMs - timeOffset;
-            return chartWidth - padding.right - (age / timeRange) * innerWidth;
-        };
-
-        // Draw brake zones (red background when braking) - brighter
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
-        let brakeStart: number | null = null;
-        visibleHistory.forEach((p, i) => {
-            const x = toCanvasX(p.timeOffset);
-            if (p.brake && brakeStart === null) {
-                brakeStart = x;
-            } else if (!p.brake && brakeStart !== null) {
-                ctx.fillRect(brakeStart, padding.top, x - brakeStart, innerHeight);
-                brakeStart = null;
+        // Brake applied background
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+        for (let i = 0; i < visibleHistory.length - 1; i++) {
+            const p1 = visibleHistory[i];
+            const p2 = visibleHistory[i + 1];
+            if (p1.brake) {
+                const x1 = toCanvasX(p1.timeOffset);
+                const x2 = toCanvasX(p2.timeOffset);
+                ctx.fillRect(Math.min(x1, x2), padding.top, Math.abs(x2 - x1), innerHeight);
             }
-            // Handle end of history
-            if (i === visibleHistory.length - 1 && brakeStart !== null) {
-                ctx.fillRect(brakeStart, padding.top, x - brakeStart, innerHeight);
-            }
-        });
+        }
 
-        // Draw throttle line (green) - thicker
+        // Throttle area gradient
+        ctx.beginPath();
+        const throttleGrad = ctx.createLinearGradient(0, padding.top, 0, padding.top + innerHeight);
+        throttleGrad.addColorStop(0, 'rgba(74, 222, 128, 0.25)');
+        throttleGrad.addColorStop(1, 'rgba(74, 222, 128, 0)');
+        ctx.fillStyle = throttleGrad;
+        ctx.moveTo(toCanvasX(visibleHistory[0].timeOffset), padding.top + innerHeight);
+        visibleHistory.forEach(p => ctx.lineTo(toCanvasX(p.timeOffset), toCanvasY(p.throttle)));
+        ctx.lineTo(toCanvasX(visibleHistory[visibleHistory.length - 1].timeOffset), padding.top + innerHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        // Throttle glowing line
+        ctx.save();
+        ctx.shadowBlur = scaledValue(8);
+        ctx.shadowColor = 'rgba(74, 222, 128, 0.5)';
         ctx.beginPath();
         ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = Math.max(2, scaledValue(3));
+        ctx.lineWidth = Math.max(2, scaledValue(2.5));
         let started = false;
         visibleHistory.forEach(p => {
             const x = toCanvasX(p.timeOffset);
-            const y = padding.top + innerHeight - (p.throttle / 100) * innerHeight;
-            if (!started) {
-                ctx.moveTo(x, y);
-                started = true;
-            } else {
-                ctx.lineTo(x, y);
-            }
+            const y = toCanvasY(p.throttle);
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
         });
         ctx.stroke();
+        ctx.restore();
     }
 
-    // Compact legend overlay (top-left corner, inside chart)
+    // Legend
     const legendPad = scaledValue(5);
-    ctx.font = `bold ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
+    ctx.font = `900 ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // Semi-transparent background for legend
-    const legendText = 'THR / BRK';
-    const textWidth = ctx.measureText(legendText).width;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(legendPad - 2, legendPad - 1, textWidth + 4, scaledValue(12) + 2);
+    const pedalLabel = 'PEDALS';
+    const plWidth = ctx.measureText(pedalLabel).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(legendPad - 1, legendPad - 1, plWidth + 2, scaledValue(12) + 2);
+    ctx.fillStyle = 'white';
+    ctx.fillText(pedalLabel, legendPad, legendPad);
 
-    // Draw legend with colors
+    const subTop = legendPad + scaledValue(15);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(legendPad - 1, subTop - 1, scaledValue(60), scaledValue(12) + 2);
     ctx.fillStyle = '#4ade80';
-    ctx.fillText('THR', legendPad, legendPad);
+    ctx.fillText('THR', legendPad, subTop);
     const thrWidth = ctx.measureText('THR').width;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillText(' / ', legendPad + thrWidth, legendPad);
+    ctx.fillText(' / ', legendPad + thrWidth, subTop);
     const slashWidth = ctx.measureText(' / ').width;
     ctx.fillStyle = '#ef4444';
-    ctx.fillText('BRK', legendPad + thrWidth + slashWidth, legendPad);
+    ctx.fillText('BRK', legendPad + thrWidth + slashWidth, subTop);
 
     ctx.restore();
 }
@@ -529,28 +461,16 @@ export function drawAccelChart(
     const scale = Math.min(videoWidth / baseWidth, 1);
     const scaledValue = (base: number) => Math.round(base * scale);
 
-    // Don't draw if no slots available
     if (getChartSlotCount(videoWidth) === 0) return;
 
-    // Chart dimensions - optimized for maximum data visibility
     const chartWidth = scaledValue(170);
     const chartHeight = scaledValue(90);
-
-    // Minimal padding - maximize chart area
-    const padding = {
-        top: scaledValue(4),
-        right: scaledValue(4),
-        bottom: scaledValue(4),
-        left: scaledValue(4)
-    };
+    const padding = { top: scaledValue(4), right: scaledValue(4), bottom: scaledValue(4), left: scaledValue(4) };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
 
-    // Position in the bottom bar using slot system
     const stripHeight = scaledValue(120);
     const barY = videoHeight - stripHeight;
-
-    // Use slot-based positioning
     const chartX = getChartSlotPosition(slotIndex, videoWidth);
     const chartY = barY + (stripHeight - chartHeight) / 2;
 
@@ -558,12 +478,11 @@ export function drawAccelChart(
     ctx.translate(chartX, chartY);
 
     // Background
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.4)';
     ctx.beginPath();
-    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(6));
+    ctx.roundRect(0, 0, chartWidth, chartHeight, scaledValue(12));
     ctx.fill();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -571,7 +490,6 @@ export function drawAccelChart(
     const maxG = 1.0;
     const zeroY = padding.top + innerHeight / 2;
 
-    // Zero line (kept for reference, thicker)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -579,75 +497,89 @@ export function drawAccelChart(
     ctx.lineTo(chartWidth - padding.right, zeroY);
     ctx.stroke();
 
+    const toCanvasX = (timeOffset: number) => chartWidth - padding.right - ((currentTimeMs - timeOffset) / timeRange) * innerWidth;
+    const toCanvasY = (g: number) => zeroY - (Math.max(-maxG, Math.min(maxG, g)) / maxG) * (innerHeight / 2);
+
     const visibleHistory = history.filter(p => currentTimeMs - p.timeOffset <= timeRange);
 
     if (visibleHistory.length >= 2) {
-        const toCanvasX = (timeOffset: number) => {
-            const age = currentTimeMs - timeOffset;
-            return chartWidth - padding.right - (age / timeRange) * innerWidth;
-        };
-
-        const toCanvasY = (g: number) => {
-            const clamped = Math.max(-maxG, Math.min(maxG, g));
-            return zeroY - (clamped / maxG) * (innerHeight / 2);
-        };
-
-        // Draw longitudinal G (red) - thicker
+        // Area fills
         ctx.beginPath();
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = Math.max(2, scaledValue(3));
+        const lonGradient = ctx.createLinearGradient(0, zeroY - (innerHeight / 2), 0, zeroY + (innerHeight / 2));
+        lonGradient.addColorStop(0, 'rgba(239, 68, 68, 0.1)');
+        lonGradient.addColorStop(0.5, 'rgba(239, 68, 68, 0)');
+        lonGradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
+        ctx.fillStyle = lonGradient;
+        ctx.moveTo(toCanvasX(visibleHistory[0].timeOffset), zeroY);
+        visibleHistory.forEach(p => ctx.lineTo(toCanvasX(p.timeOffset), toCanvasY(p.gLong)));
+        ctx.lineTo(toCanvasX(visibleHistory[visibleHistory.length - 1].timeOffset), zeroY);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        const latGradient = ctx.createLinearGradient(0, zeroY - (innerHeight / 2), 0, zeroY + (innerHeight / 2));
+        latGradient.addColorStop(0, 'rgba(59, 130, 246, 0.1)');
+        latGradient.addColorStop(0.5, 'rgba(59, 130, 246, 0)');
+        latGradient.addColorStop(1, 'rgba(59, 130, 246, 0.1)');
+        ctx.fillStyle = latGradient;
+        ctx.moveTo(toCanvasX(visibleHistory[0].timeOffset), zeroY);
+        visibleHistory.forEach(p => ctx.lineTo(toCanvasX(p.timeOffset), toCanvasY(p.gLat)));
+        ctx.lineTo(toCanvasX(visibleHistory[visibleHistory.length - 1].timeOffset), zeroY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glowing lines
+        ctx.save();
+        ctx.shadowBlur = scaledValue(6);
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
+        ctx.beginPath();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = Math.max(2, scaledValue(2.5));
         let started = false;
         visibleHistory.forEach(p => {
             const x = toCanvasX(p.timeOffset);
             const y = toCanvasY(p.gLong);
-            if (!started) {
-                ctx.moveTo(x, y);
-                started = true;
-            } else {
-                ctx.lineTo(x, y);
-            }
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
         });
         ctx.stroke();
 
-        // Draw lateral G (blue) - thicker
+        ctx.shadowColor = 'rgba(59, 130, 246, 0.5)';
         ctx.beginPath();
-        ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = Math.max(2, scaledValue(3));
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = Math.max(2, scaledValue(2.5));
         started = false;
         visibleHistory.forEach(p => {
             const x = toCanvasX(p.timeOffset);
             const y = toCanvasY(p.gLat);
-            if (!started) {
-                ctx.moveTo(x, y);
-                started = true;
-            } else {
-                ctx.lineTo(x, y);
-            }
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
         });
         ctx.stroke();
+        ctx.restore();
     }
 
-    // Compact legend overlay (top-left corner, inside chart)
     const legendPad = scaledValue(5);
-    ctx.font = `bold ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
+    ctx.font = `900 ${Math.max(10, scaledValue(11))}px system-ui, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // Semi-transparent background for legend
-    const legendText = 'LNG / LAT';
-    const textWidth = ctx.measureText(legendText).width;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(legendPad - 2, legendPad - 1, textWidth + 4, scaledValue(12) + 2);
+    const gTitle = 'G-FORCES';
+    const gtWidth = ctx.measureText(gTitle).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(legendPad - 1, legendPad - 1, gtWidth + 2, scaledValue(12) + 2);
+    ctx.fillStyle = 'white';
+    ctx.fillText(gTitle, legendPad, legendPad);
 
-    // Draw legend with colors
-    ctx.fillStyle = '#f87171';
-    ctx.fillText('LNG', legendPad, legendPad);
-    const lngWidth = ctx.measureText('LNG').width;
+    const subTop = legendPad + scaledValue(15);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(legendPad - 1, subTop - 1, scaledValue(60), scaledValue(12) + 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('LON', legendPad, subTop);
+    const lonWidth = ctx.measureText('LON').width;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillText(' / ', legendPad + lngWidth, legendPad);
+    ctx.fillText(' / ', legendPad + lonWidth, subTop);
     const slashWidth = ctx.measureText(' / ').width;
-    ctx.fillStyle = '#60a5fa';
-    ctx.fillText('LAT', legendPad + lngWidth + slashWidth, legendPad);
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillText('LAT', legendPad + lonWidth + slashWidth, subTop);
 
     ctx.restore();
 }

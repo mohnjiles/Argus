@@ -320,12 +320,12 @@ export function AccelDebugOverlay({ data }: { data: SeiMetadata }) {
   );
 }
 
-// Get color for G-force dot based on magnitude
+// Get color for G-force dot based on magnitude with more premium colors
 function getGDotColor(g: number): string {
-  if (g < 0.25) return '#4ade80'; // green-400
-  if (g < 0.5) return '#facc15';  // yellow-400
-  if (g < 0.75) return '#fb923c'; // orange-400
-  return '#f87171';               // red-400
+  if (g < 0.2) return '#4ade80'; // Emerald/Green
+  if (g < 0.4) return '#fbbf24'; // Amber/Yellow
+  if (g < 0.7) return '#f97316'; // Orange
+  return '#ef4444';               // Red
 }
 
 // Smooth interpolation factor (0-1, higher = faster response)
@@ -432,10 +432,13 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
     // Clear canvas
     ctx.clearRect(0, 0, size, size);
 
-    // Draw background - more transparent
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    // Clear and draw background
+    const gradient = ctx.createLinearGradient(0, 0, 0, size);
+    gradient.addColorStop(0, 'rgba(10, 10, 10, 0.4)');
+    gradient.addColorStop(1, 'rgba(10, 10, 10, 0.6)');
+    ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(center, center, center - 2, 0, Math.PI * 2);
+    ctx.arc(center, center, center, 0, Math.PI * 2);
     ctx.fill();
 
     // Draw grid rings
@@ -458,9 +461,9 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
     ctx.lineTo(size - 10, center);
     ctx.stroke();
 
-    // Draw labels - smaller
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.font = '8px system-ui';
+    // Draw labels - premium styling
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '900 8px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText('BRK', center, 14);
     ctx.fillText('ACC', center, size - 6);
@@ -503,25 +506,30 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
     const dotY = center - displayLong * scale;
     const dotColor = getGDotColor(displayMagnitudeRef.current);
 
-    // Glow effect
-    const gradient = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, 10);
-    gradient.addColorStop(0, dotColor);
-    gradient.addColorStop(1, 'transparent');
-    ctx.fillStyle = gradient;
+    // Glow effect - more intense for premium feel
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = dotColor;
+
+    const dotGradient = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, 12);
+    dotGradient.addColorStop(0, dotColor);
+    dotGradient.addColorStop(0.4, dotColor + '88');
+    dotGradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = dotGradient;
     ctx.beginPath();
-    ctx.arc(dotX, dotY, 10, 0, Math.PI * 2);
+    ctx.arc(dotX, dotY, 12, 0, Math.PI * 2);
     ctx.fill();
 
-    // Solid dot
+    // Solid dot with inner shine
+    ctx.shadowBlur = 0;
     ctx.fillStyle = dotColor;
     ctx.beginPath();
-    ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
+    ctx.arc(dotX, dotY, 5.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // White center
+    // Core shine
     ctx.fillStyle = 'white';
     ctx.beginPath();
-    ctx.arc(dotX, dotY, 1.5, 0, Math.PI * 2);
+    ctx.arc(dotX, dotY, 1.8, 0, Math.PI * 2);
     ctx.fill();
   }, [paused]);
 
@@ -531,13 +539,13 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-2.5 text-white shadow-2xl border border-white/10">
       {/* Header */}
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">G-FORCE</span>
+      <div className="flex items-center justify-between mb-1.5 px-0.5">
+        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">G-FORCE</span>
         <span
-          className="text-xs font-bold tabular-nums"
+          className="text-xs font-black tabular-nums filter drop-shadow-[0_0_5px_rgba(0,0,0,0.5)]"
           style={{ color: getGDotColor(magnitude) }}
         >
-          {magnitude.toFixed(2)} G
+          {magnitude.toFixed(2)}<span className="text-[9px] ml-0.5 opacity-70">G</span>
         </span>
       </div>
 
@@ -692,10 +700,40 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         return zeroY - (clamped / maxG) * (chartHeight / 2);
       };
 
-      // Draw longitudinal (red)
+      // Draw area fills for LON and LAT
+      // LON (Red) area
       ctx.beginPath();
-      ctx.strokeStyle = '#f87171';
-      ctx.lineWidth = 2;
+      const lonGradient = ctx.createLinearGradient(0, zeroY - (chartHeight / 2), 0, zeroY + (chartHeight / 2));
+      lonGradient.addColorStop(0, 'rgba(239, 68, 68, 0.1)');
+      lonGradient.addColorStop(0.5, 'rgba(239, 68, 68, 0)');
+      lonGradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
+      ctx.fillStyle = lonGradient;
+      let firstX = toCanvasX(history[0].time);
+      ctx.moveTo(firstX, zeroY);
+      history.forEach(p => ctx.lineTo(toCanvasX(p.time), toCanvasY(p.long)));
+      ctx.lineTo(toCanvasX(history[history.length - 1].time), zeroY);
+      ctx.closePath();
+      ctx.fill();
+
+      // LAT (Blue) area
+      ctx.beginPath();
+      const latGradient = ctx.createLinearGradient(0, zeroY - (chartHeight / 2), 0, zeroY + (chartHeight / 2));
+      latGradient.addColorStop(0, 'rgba(59, 130, 246, 0.1)');
+      latGradient.addColorStop(0.5, 'rgba(59, 130, 246, 0)');
+      latGradient.addColorStop(1, 'rgba(59, 130, 246, 0.1)');
+      ctx.fillStyle = latGradient;
+      ctx.moveTo(firstX, zeroY);
+      history.forEach(p => ctx.lineTo(toCanvasX(p.time), toCanvasY(p.lat)));
+      ctx.lineTo(toCanvasX(history[history.length - 1].time), zeroY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Draw longitudinal (red) with glowing line
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
+      ctx.beginPath();
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2.5;
       let started = false;
       history.forEach(p => {
         const x = toCanvasX(p.time);
@@ -709,10 +747,12 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
       });
       ctx.stroke();
 
-      // Draw lateral (blue)
+      // Draw lateral (blue) with glowing line
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = 'rgba(59, 130, 246, 0.5)';
       ctx.beginPath();
-      ctx.strokeStyle = '#60a5fa';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2.5;
       started = false;
       history.forEach(p => {
         const x = toCanvasX(p.time);
@@ -725,26 +765,32 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
         }
       });
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
-    // Compact legend
-    ctx.font = 'bold 9px system-ui';
+    // Compact legend - Updated to clarify G-Forces
+    ctx.font = '900 9px system-ui';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    const legendText = 'LNG / LAT';
-    const textWidth = ctx.measureText(legendText).width;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.fillRect(pad, pad, textWidth + 6, 12);
+    const legendTitle = 'G-FORCES';
+    const titleWidth = ctx.measureText(legendTitle).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(pad, pad, titleWidth + 6, 12);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillText(legendTitle, pad + 2, pad + 2);
 
-    ctx.fillStyle = '#f87171';
-    ctx.fillText('LNG', pad + 2, pad + 2);
-    const lngWidth = ctx.measureText('LNG').width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(pad, pad + 14, 60, 12);
+
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('LON', pad + 2, pad + 16);
+    const lonWidth = ctx.measureText('LON').width;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.fillText(' / ', pad + 2 + lngWidth, pad + 2);
+    ctx.fillText(' / ', pad + 2 + lonWidth, pad + 16);
     const slashWidth = ctx.measureText(' / ').width;
-    ctx.fillStyle = '#60a5fa';
-    ctx.fillText('LAT', pad + 2 + lngWidth + slashWidth, pad + 2);
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillText('LAT', pad + 2 + lonWidth + slashWidth, pad + 16);
   }, [paused]);
 
   // Animation loop - automatically stops when paused
@@ -824,11 +870,11 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
     }
 
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.4)';
     ctx.beginPath();
-    ctx.roundRect(0, 0, width, height, 6);
+    ctx.roundRect(0, 0, width, height, 12);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -840,8 +886,10 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
     if (history.length >= 2) {
       const timeRange = CHART_HISTORY_SECONDS * 1000;
       const toCanvasX = (time: number) => width - pad - ((now - time) / timeRange) * chartWidth;
+      const toCanvasY = (throttle: number) => pad + chartHeight - (throttle / 100) * chartHeight;
 
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+      // Brake applied background pulse
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
       for (let i = 0; i < history.length - 1; i++) {
         const p1 = history[i];
         const p2 = history[i + 1];
@@ -852,43 +900,65 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
         }
       }
 
+      // Throttle area gradient
+      ctx.beginPath();
+      const throttleGrad = ctx.createLinearGradient(0, pad, 0, pad + chartHeight);
+      throttleGrad.addColorStop(0, 'rgba(74, 222, 128, 0.25)');
+      throttleGrad.addColorStop(1, 'rgba(74, 222, 128, 0)');
+      ctx.fillStyle = throttleGrad;
+      const initialX = toCanvasX(history[0].time);
+      ctx.moveTo(initialX, pad + chartHeight);
+      history.forEach(p => ctx.lineTo(toCanvasX(p.time), toCanvasY(p.throttle)));
+      ctx.lineTo(toCanvasX(history[history.length - 1].time), pad + chartHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      // Throttle glowing line
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(74, 222, 128, 0.5)';
       ctx.beginPath();
       ctx.strokeStyle = '#4ade80';
       ctx.lineWidth = 2.5;
       let started = false;
       history.forEach(p => {
         const x = toCanvasX(p.time);
-        const y = pad + chartHeight - (p.throttle / 100) * chartHeight;
+        const y = toCanvasY(p.throttle);
         if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
       });
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
-    ctx.font = 'bold 10px system-ui';
+    ctx.font = '900 9px system-ui';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const legendText = 'THR / BRK';
+    const legendText = 'PEDALS';
     const textWidth = ctx.measureText(legendText).width;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(pad, pad, textWidth + 6, 12);
+    ctx.fillStyle = 'white';
+    ctx.fillText(legendText, pad + 2, pad + 2);
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(pad, pad + 14, 60, 12);
     ctx.fillStyle = '#4ade80';
-    ctx.fillText('THR', pad + 2, pad + 2);
+    ctx.fillText('THR', pad + 2, pad + 16);
     const thrWidth = ctx.measureText('THR').width;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.fillText(' / ', pad + 2 + thrWidth, pad + 2);
+    ctx.fillText(' / ', pad + 2 + thrWidth, pad + 16);
     const slashWidth = ctx.measureText(' / ').width;
-    ctx.fillStyle = '#f87171';
-    ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 16);
   }, [paused]);
 
   useAnimationFrame(drawPedalChart, !paused);
 
   return (
-    <div className="bg-black/85 backdrop-blur-md rounded-xl p-2 text-white shadow-2xl border border-white/10">
+    <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
       <canvas
         ref={canvasRef}
-        width={200}
-        height={100}
+        width={180}
+        height={80}
         className="block rounded"
       />
     </div>
@@ -985,8 +1055,8 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
 
       if (history.length > 0) {
         const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
-        gradient.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
-        gradient.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
+        gradient.addColorStop(0, 'rgba(34, 211, 238, 0.25)');
+        gradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
         ctx.beginPath();
         ctx.fillStyle = gradient;
         const firstX = toCanvasX(history[0].time);
@@ -1000,9 +1070,11 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
         ctx.fill();
       }
 
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(34, 211, 238, 0.5)';
       ctx.beginPath();
       ctx.strokeStyle = '#22d3ee';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       let started = false;
       history.forEach(p => {
         const x = toCanvasX(p.time);
@@ -1010,14 +1082,15 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
         if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
       });
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
-    ctx.font = 'bold 9px system-ui';
+    ctx.font = '900 9px system-ui';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const legendText = `SPD ${speedUnit.toUpperCase()}`;
+    const legendText = `SPEED (${speedUnit.toUpperCase()})`;
     const textWidth = ctx.measureText(legendText).width;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(pad, pad, textWidth + 6, 12);
     ctx.fillStyle = '#22d3ee';
     ctx.fillText(legendText, pad + 2, pad + 2);
