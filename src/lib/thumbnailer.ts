@@ -20,8 +20,51 @@ export interface ThumbnailResult {
     timestamp: number;
 }
 
-// Simple in-memory cache for thumbnails
+// LRU cache configuration
+const CACHE_MAX_ENTRIES = 50;
+
+// LRU cache for thumbnails - tracks access order for eviction
 const thumbnailCache = new Map<string, ThumbnailResult[]>();
+const cacheAccessOrder: string[] = [];
+
+/**
+ * Add entry to cache with LRU eviction
+ */
+function addToCache(key: string, value: ThumbnailResult[]) {
+    // If key already exists, remove from access order
+    const existingIdx = cacheAccessOrder.indexOf(key);
+    if (existingIdx !== -1) {
+        cacheAccessOrder.splice(existingIdx, 1);
+    }
+
+    // Evict oldest entries if at capacity
+    while (cacheAccessOrder.length >= CACHE_MAX_ENTRIES) {
+        const oldestKey = cacheAccessOrder.shift();
+        if (oldestKey) {
+            thumbnailCache.delete(oldestKey);
+        }
+    }
+
+    // Add new entry
+    thumbnailCache.set(key, value);
+    cacheAccessOrder.push(key);
+}
+
+/**
+ * Get entry from cache and update access order
+ */
+function getFromCache(key: string): ThumbnailResult[] | undefined {
+    if (!thumbnailCache.has(key)) return undefined;
+
+    // Update access order (move to end)
+    const idx = cacheAccessOrder.indexOf(key);
+    if (idx !== -1) {
+        cacheAccessOrder.splice(idx, 1);
+        cacheAccessOrder.push(key);
+    }
+
+    return thumbnailCache.get(key);
+}
 
 /**
  * Generate a series of thumbnails for a video file
@@ -30,8 +73,9 @@ export async function generateThumbnails(options: ThumbnailOptions): Promise<Thu
     const { file, count, width = 160, height = 90, startTime = 0, endTime } = options;
 
     const cacheKey = `${file.name}-${file.size}-${startTime}-${endTime}-${count}-${width}x${height}`;
-    if (thumbnailCache.has(cacheKey)) {
-        return thumbnailCache.get(cacheKey)!;
+    const cached = getFromCache(cacheKey);
+    if (cached) {
+        return cached;
     }
 
     try {
@@ -177,7 +221,7 @@ export async function generateThumbnails(options: ThumbnailOptions): Promise<Thu
         // Sort results by timestamp just in case
         results.sort((a, b) => a.timestamp - b.timestamp);
 
-        thumbnailCache.set(cacheKey, results);
+        addToCache(cacheKey, results);
         return results;
 
     } catch (error) {
@@ -191,4 +235,5 @@ export async function generateThumbnails(options: ThumbnailOptions): Promise<Thu
  */
 export function clearThumbnailCache() {
     thumbnailCache.clear();
+    cacheAccessOrder.length = 0;
 }

@@ -3,8 +3,9 @@
  * Displays SEI telemetry data as an overlay on the video
  */
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import type { SeiMetadata, SpeedUnit } from '../../types';
+import { useAnimationFrame } from '../../hooks/useAnimationFrame';
 import {
   AutopilotState,
   GEAR_LABELS,
@@ -348,7 +349,6 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
   const displayPosRef = useRef({ lat: 0, long: 0 });
   const targetPosRef = useRef({ lat: 0, long: 0 });
   const displayMagnitudeRef = useRef(0);
-  const rafRef = useRef<number>(0);
 
   // Convert to G and apply Tesla's coordinate system
   // Display shows the force you FEEL (opposite of motion direction):
@@ -389,154 +389,144 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
     }
   }, [gLat, gLong, magnitude, paused]);
 
-  // Animation loop - runs at 60fps for smooth display
-  useEffect(() => {
+  // Canvas draw function - memoized for performance
+  const drawGMeter = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const size = 120; // Slightly smaller
+    const realNow = Date.now();
+
+    // Handle pause/unpause transitions
+    if (paused && !wasPausedRef.current) {
+      pauseTimeRef.current = realNow;
+      wasPausedRef.current = true;
+    } else if (!paused && wasPausedRef.current) {
+      wasPausedRef.current = false;
+    }
+
+    // Use frozen time when paused, real time when playing
+    const now = paused ? pauseTimeRef.current : realNow;
+
+    // Only interpolate and update if not paused
+    if (!paused) {
+      // Smoothly interpolate toward target
+      displayPosRef.current.lat = lerp(displayPosRef.current.lat, targetPosRef.current.lat, SMOOTHING);
+      displayPosRef.current.long = lerp(displayPosRef.current.long, targetPosRef.current.long, SMOOTHING);
+    }
+
+    const size = 120;
     const center = size / 2;
     const maxG = 1.0;
     const scale = (center - 12) / maxG;
 
-    const animate = () => {
-      const realNow = Date.now();
+    const displayLat = displayPosRef.current.lat;
+    const displayLong = displayPosRef.current.long;
+    const displayMag = Math.sqrt(displayLat * displayLat + displayLong * displayLong);
+    if (!paused) {
+      displayMagnitudeRef.current = lerp(displayMagnitudeRef.current, displayMag, SMOOTHING);
+    }
 
-      // Handle pause/unpause transitions
-      if (paused && !wasPausedRef.current) {
-        pauseTimeRef.current = realNow;
-        wasPausedRef.current = true;
-      } else if (!paused && wasPausedRef.current) {
-        wasPausedRef.current = false;
-      }
+    // Clear canvas
+    ctx.clearRect(0, 0, size, size);
 
-      // Use frozen time when paused, real time when playing
-      const now = paused ? pauseTimeRef.current : realNow;
+    // Draw background - more transparent
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.arc(center, center, center - 2, 0, Math.PI * 2);
+    ctx.fill();
 
-      // Only interpolate and update if not paused
-      if (!paused) {
-        // Smoothly interpolate toward target
-        displayPosRef.current.lat = lerp(displayPosRef.current.lat, targetPosRef.current.lat, SMOOTHING);
-        displayPosRef.current.long = lerp(displayPosRef.current.long, targetPosRef.current.long, SMOOTHING);
-      }
-
-      const displayLat = displayPosRef.current.lat;
-      const displayLong = displayPosRef.current.long;
-      const displayMag = Math.sqrt(displayLat * displayLat + displayLong * displayLong);
-      if (!paused) {
-        displayMagnitudeRef.current = lerp(displayMagnitudeRef.current, displayMag, SMOOTHING);
-      }
-
-      // Clear canvas
-      ctx.clearRect(0, 0, size, size);
-
-      // Draw background - more transparent
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    // Draw grid rings
+    const ringGs = [0.25, 0.5, 0.75, 1.0];
+    ringGs.forEach((g, i) => {
+      ctx.strokeStyle = i === 3 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = i === 3 ? 1.5 : 1;
       ctx.beginPath();
-      ctx.arc(center, center, center - 2, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(center, center, g * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    });
 
-      // Draw grid rings
-      const ringGs = [0.25, 0.5, 0.75, 1.0];
-      ringGs.forEach((g, i) => {
-        ctx.strokeStyle = i === 3 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = i === 3 ? 1.5 : 1;
+    // Draw crosshairs
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(center, 10);
+    ctx.lineTo(center, size - 10);
+    ctx.moveTo(10, center);
+    ctx.lineTo(size - 10, center);
+    ctx.stroke();
+
+    // Draw labels - smaller
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = '8px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('BRK', center, 14);
+    ctx.fillText('ACC', center, size - 6);
+    ctx.textAlign = 'left';
+    ctx.fillText('L', 8, center + 3);
+    ctx.textAlign = 'right';
+    ctx.fillText('R', size - 8, center + 3);
+
+    // Draw trail (fading) - uses actual data points
+    const trail = trailRef.current;
+    if (trail.length > 1) {
+      for (let i = 1; i < trail.length; i++) {
+        const p = trail[i];
+        const age = (now - p.time) / 1000;
+        const alpha = Math.max(0, 0.4 - age * 0.4);
+
+        const x = center + p.x * scale;
+        const y = center - p.y * scale;
+
+        ctx.fillStyle = `rgba(147, 51, 234, ${alpha})`;
         ctx.beginPath();
-        ctx.arc(center, center, g * scale, 0, Math.PI * 2);
-        ctx.stroke();
-      });
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
-      // Draw crosshairs
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    // Draw peak indicator
+    if (peakRef.current.magnitude > 0.1) {
+      const peakX = center + peakRef.current.x * scale;
+      const peakY = center - peakRef.current.y * scale;
+      ctx.strokeStyle = 'rgba(251, 146, 60, 0.5)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(center, 10);
-      ctx.lineTo(center, size - 10);
-      ctx.moveTo(10, center);
-      ctx.lineTo(size - 10, center);
+      ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
       ctx.stroke();
+    }
 
-      // Draw labels - smaller
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.font = '8px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('BRK', center, 14);
-      ctx.fillText('ACC', center, size - 6);
-      ctx.textAlign = 'left';
-      ctx.fillText('L', 8, center + 3);
-      ctx.textAlign = 'right';
-      ctx.fillText('R', size - 8, center + 3);
+    // Draw current position dot - uses SMOOTHED position
+    const dotX = center + displayLat * scale;
+    const dotY = center - displayLong * scale;
+    const dotColor = getGDotColor(displayMagnitudeRef.current);
 
-      // Draw trail (fading) - uses actual data points
-      const trail = trailRef.current;
-      if (trail.length > 1) {
-        for (let i = 1; i < trail.length; i++) {
-          const p = trail[i];
-          const age = (now - p.time) / 1000;
-          const alpha = Math.max(0, 0.4 - age * 0.4);
+    // Glow effect
+    const gradient = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, 10);
+    gradient.addColorStop(0, dotColor);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 10, 0, Math.PI * 2);
+    ctx.fill();
 
-          const x = center + p.x * scale;
-          const y = center - p.y * scale;
+    // Solid dot
+    ctx.fillStyle = dotColor;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
+    ctx.fill();
 
-          ctx.fillStyle = `rgba(147, 51, 234, ${alpha})`;
-          ctx.beginPath();
-          ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+    // White center
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }, [paused]);
 
-      // Draw peak indicator
-      if (peakRef.current.magnitude > 0.1) {
-        const peakX = center + peakRef.current.x * scale;
-        const peakY = center - peakRef.current.y * scale;
-        ctx.strokeStyle = 'rgba(251, 146, 60, 0.5)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Draw current position dot - uses SMOOTHED position
-      const dotX = center + displayLat * scale;
-      const dotY = center - displayLong * scale;
-      const dotColor = getGDotColor(displayMagnitudeRef.current);
-
-      // Glow effect
-      const gradient = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, 10);
-      gradient.addColorStop(0, dotColor);
-      gradient.addColorStop(1, 'transparent');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(dotX, dotY, 10, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Solid dot
-      ctx.fillStyle = dotColor;
-      ctx.beginPath();
-      ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // White center
-      ctx.fillStyle = 'white';
-      ctx.beginPath();
-      ctx.arc(dotX, dotY, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Continue animation loop
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    // Start animation
-    rafRef.current = requestAnimationFrame(animate);
-
-    // Cleanup
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [paused]); // Re-run when pause state changes
+  // Animation loop - automatically stops when paused
+  useAnimationFrame(drawGMeter, !paused);
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-2.5 text-white shadow-2xl border border-white/10">
@@ -592,7 +582,6 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<{ long: number; lat: number; time: number }[]>([]);
   const lastSampleTimeRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
   const targetRef = useRef({ long: 0, lat: 0 });
   const lastVideoTimestampRef = useRef<number | undefined>(undefined);
   const pauseTimeRef = useRef<number>(0);
@@ -618,8 +607,8 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
     targetRef.current = { long: gLong, lat: gLat };
   }, [gLong, gLat]);
 
-  // Continuous animation loop for smooth rendering
-  useEffect(() => {
+  // Canvas draw function
+  const drawAccelChart = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -630,151 +619,136 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
     const height = 100;
     const maxG = 1.0;
 
-    const animate = () => {
-      const realNow = Date.now();
+    const realNow = Date.now();
 
-      // Handle pause/unpause transitions
-      if (paused && !wasPausedRef.current) {
-        // Just paused - capture the current time
-        pauseTimeRef.current = realNow;
-        wasPausedRef.current = true;
-      } else if (!paused && wasPausedRef.current) {
-        // Just unpaused - no action needed, just update flag
-        wasPausedRef.current = false;
+    // Handle pause/unpause transitions
+    if (paused && !wasPausedRef.current) {
+      pauseTimeRef.current = realNow;
+      wasPausedRef.current = true;
+    } else if (!paused && wasPausedRef.current) {
+      wasPausedRef.current = false;
+    }
+
+    // Use frozen time when paused, real time when playing
+    const now = paused ? pauseTimeRef.current : realNow;
+
+    // Only update values when not paused
+    if (!paused) {
+      const minInterval = 1000 / CHART_SAMPLE_RATE;
+      if (now - lastSampleTimeRef.current >= minInterval) {
+        historyRef.current.push({
+          long: targetRef.current.long,
+          lat: targetRef.current.lat,
+          time: now
+        });
+        lastSampleTimeRef.current = now;
+
+        // Keep only last N seconds
+        const cutoff = now - (CHART_HISTORY_SECONDS * 1000);
+        historyRef.current = historyRef.current.filter(p => p.time > cutoff);
       }
+    }
 
-      // Use frozen time when paused, real time when playing
-      const now = paused ? pauseTimeRef.current : realNow;
+    // Clear
+    ctx.clearRect(0, 0, width, height);
 
-      // Only update values when not paused
-      if (!paused) {
-        // Add samples at our target rate using raw values (no smoothing for granularity)
-        const minInterval = 1000 / CHART_SAMPLE_RATE;
-        if (now - lastSampleTimeRef.current >= minInterval) {
-          historyRef.current.push({
-            long: targetRef.current.long,
-            lat: targetRef.current.lat,
-            time: now
-          });
-          lastSampleTimeRef.current = now;
+    // Background
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, width, height, 8);
+    ctx.fill();
 
-          // Keep only last N seconds
-          const cutoff = now - (CHART_HISTORY_SECONDS * 1000);
-          historyRef.current = historyRef.current.filter(p => p.time > cutoff);
+    // Subtle border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Minimal padding
+    const pad = 4;
+    const chartWidth = width - pad * 2;
+    const chartHeight = height - pad * 2;
+    const zeroY = pad + chartHeight / 2;
+
+    // Zero line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, zeroY);
+    ctx.lineTo(width - pad, zeroY);
+    ctx.stroke();
+
+    // Draw data
+    const history = historyRef.current;
+    if (history.length >= 2) {
+      const timeRange = CHART_HISTORY_SECONDS * 1000;
+
+      const toCanvasX = (time: number) => {
+        const timeOffset = now - time;
+        return width - pad - (timeOffset / timeRange) * chartWidth;
+      };
+
+      const toCanvasY = (g: number) => {
+        const clamped = Math.max(-maxG, Math.min(maxG, g));
+        return zeroY - (clamped / maxG) * (chartHeight / 2);
+      };
+
+      // Draw longitudinal (red)
+      ctx.beginPath();
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      let started = false;
+      history.forEach(p => {
+        const x = toCanvasX(p.time);
+        const y = toCanvasY(p.long);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
         }
-      }
-
-      // Clear
-      ctx.clearRect(0, 0, width, height);
-
-      // Background - use the full canvas
-      ctx.fillStyle = 'rgba(20, 20, 20, 0.4)';
-      ctx.beginPath();
-      ctx.roundRect(0, 0, width, height, 8);
-      ctx.fill();
-
-      // Subtle border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = 1;
+      });
       ctx.stroke();
 
-      // Minimal padding to maximize chart area
-      const pad = 4;
-      const chartWidth = width - pad * 2;
-      const chartHeight = height - pad * 2;
-      const zeroY = pad + chartHeight / 2;
-
-      // Zero line (for reference)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1;
+      // Draw lateral (blue)
       ctx.beginPath();
-      ctx.moveTo(pad, zeroY);
-      ctx.lineTo(width - pad, zeroY);
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 2;
+      started = false;
+      history.forEach(p => {
+        const x = toCanvasX(p.time);
+        const y = toCanvasY(p.lat);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
       ctx.stroke();
+    }
 
-      // Draw data
-      const history = historyRef.current;
-      if (history.length >= 2) {
-        const timeRange = CHART_HISTORY_SECONDS * 1000;
+    // Compact legend
+    ctx.font = 'bold 9px system-ui';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
 
-        // Helper to convert data point to canvas coords
-        const toCanvasX = (time: number) => {
-          const timeOffset = now - time;
-          return width - pad - (timeOffset / timeRange) * chartWidth;
-        };
+    const legendText = 'LNG / LAT';
+    const textWidth = ctx.measureText(legendText).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(pad, pad, textWidth + 6, 12);
 
-        const toCanvasY = (g: number) => {
-          const clamped = Math.max(-maxG, Math.min(maxG, g));
-          return zeroY - (clamped / maxG) * (chartHeight / 2);
-        };
+    ctx.fillStyle = '#f87171';
+    ctx.fillText('LNG', pad + 2, pad + 2);
+    const lngWidth = ctx.measureText('LNG').width;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillText(' / ', pad + 2 + lngWidth, pad + 2);
+    const slashWidth = ctx.measureText(' / ').width;
+    ctx.fillStyle = '#60a5fa';
+    ctx.fillText('LAT', pad + 2 + lngWidth + slashWidth, pad + 2);
+  }, [paused]);
 
-        // Draw longitudinal (red for brake/accel) - thicker
-        ctx.beginPath();
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 2;
-        let started = false;
-        history.forEach(p => {
-          const x = toCanvasX(p.time);
-          const y = toCanvasY(p.long);
-          if (!started) {
-            ctx.moveTo(x, y);
-            started = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
-        ctx.stroke();
-
-        // Draw lateral (blue) - thicker
-        ctx.beginPath();
-        ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = 2;
-        started = false;
-        history.forEach(p => {
-          const x = toCanvasX(p.time);
-          const y = toCanvasY(p.lat);
-          if (!started) {
-            ctx.moveTo(x, y);
-            started = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
-        ctx.stroke();
-      }
-
-      // Compact legend overlay (top-left corner, inside chart)
-      ctx.font = 'bold 9px system-ui';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-
-      // Semi-transparent background for legend
-      const legendText = 'LNG / LAT';
-      const textWidth = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fillRect(pad, pad, textWidth + 6, 12);
-
-      // Draw legend with colors
-      ctx.fillStyle = '#f87171';
-      ctx.fillText('LNG', pad + 2, pad + 2);
-      const lngWidth = ctx.measureText('LNG').width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.fillText(' / ', pad + 2 + lngWidth, pad + 2);
-      const slashWidth = ctx.measureText(' / ').width;
-      ctx.fillStyle = '#60a5fa';
-      ctx.fillText('LAT', pad + 2 + lngWidth + slashWidth, pad + 2);
-
-      // Continue animation
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    // Start animation
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [paused]); // Re-run when pause state changes
+  // Animation loop - automatically stops when paused
+  useAnimationFrame(drawAccelChart, !paused);
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
@@ -793,17 +767,14 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<{ throttle: number; brake: boolean; time: number }[]>([]);
   const lastSampleTimeRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
   const targetRef = useRef({ throttle: 0, brake: false });
   const lastVideoTimestampRef = useRef<number | undefined>(undefined);
   const pauseTimeRef = useRef<number>(0);
   const wasPausedRef = useRef<boolean>(false);
 
-  // Get current values
   const throttle = data.acceleratorPedalPosition;
   const brake = data.brakeApplied;
 
-  // Detect clip jumps/discontinuities
   useEffect(() => {
     if (videoTimestamp !== undefined && lastVideoTimestampRef.current !== undefined) {
       const timeDiff = Math.abs(videoTimestamp - lastVideoTimestampRef.current);
@@ -814,13 +785,11 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
     lastVideoTimestampRef.current = videoTimestamp;
   }, [videoTimestamp]);
 
-  // Update target values when data changes
   useEffect(() => {
     targetRef.current = { throttle, brake };
   }, [throttle, brake]);
 
-  // Continuous animation loop
-  useEffect(() => {
+  const drawPedalChart = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -829,136 +798,90 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
 
     const width = 180;
     const height = 80;
+    const realNow = Date.now();
 
-    const animate = () => {
-      const realNow = Date.now();
+    if (paused && !wasPausedRef.current) {
+      pauseTimeRef.current = realNow;
+      wasPausedRef.current = true;
+    } else if (!paused && wasPausedRef.current) {
+      wasPausedRef.current = false;
+    }
 
-      // Handle pause/unpause transitions
-      if (paused && !wasPausedRef.current) {
-        pauseTimeRef.current = realNow;
-        wasPausedRef.current = true;
-      } else if (!paused && wasPausedRef.current) {
-        wasPausedRef.current = false;
-      }
+    const now = paused ? pauseTimeRef.current : realNow;
 
-      // Use frozen time when paused, real time when playing
-      const now = paused ? pauseTimeRef.current : realNow;
-
-      // Only update values when not paused
-      if (!paused) {
-        // Add samples at target rate using raw values (no smoothing for granularity)
-        const minInterval = 1000 / CHART_SAMPLE_RATE;
-        if (now - lastSampleTimeRef.current >= minInterval) {
-          historyRef.current.push({
-            throttle: targetRef.current.throttle,
-            brake: targetRef.current.brake,
-            time: now
-          });
-          lastSampleTimeRef.current = now;
-
-          // Keep only last 10 seconds
-          const cutoff = now - (CHART_HISTORY_SECONDS * 1000);
-          historyRef.current = historyRef.current.filter(p => p.time > cutoff);
-        }
-      }
-
-      // Clear
-      ctx.clearRect(0, 0, width, height);
-
-      // Background - use the full canvas
-      ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
-      ctx.beginPath();
-      ctx.roundRect(0, 0, width, height, 6);
-      ctx.fill();
-
-      // Subtle border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Minimal padding to maximize chart area
-      const pad = 5;
-      const chartWidth = width - pad * 2;
-      const chartHeight = height - pad * 2;
-
-      // Draw data
-      const history = historyRef.current;
-      if (history.length >= 2) {
-        const timeRange = CHART_HISTORY_SECONDS * 1000;
-
-        const toCanvasX = (time: number) => {
-          const timeOffset = now - time;
-          return width - pad - (timeOffset / timeRange) * chartWidth;
-        };
-
-        // Draw brake as filled areas (red when braking) - brighter
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
-        for (let i = 0; i < history.length - 1; i++) {
-          const p1 = history[i];
-          const p2 = history[i + 1];
-
-          if (p1.brake) {
-            const x1 = toCanvasX(p1.time);
-            const x2 = toCanvasX(p2.time);
-            ctx.fillRect(
-              Math.min(x1, x2),
-              pad,
-              Math.abs(x2 - x1),
-              chartHeight
-            );
-          }
-        }
-
-        // Draw throttle line (green) - thicker
-        ctx.beginPath();
-        ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = 2.5;
-        let started = false;
-        history.forEach(p => {
-          const x = toCanvasX(p.time);
-          const y = pad + chartHeight - (p.throttle / 100) * chartHeight;
-          if (!started) {
-            ctx.moveTo(x, y);
-            started = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
+    if (!paused) {
+      const minInterval = 1000 / CHART_SAMPLE_RATE;
+      if (now - lastSampleTimeRef.current >= minInterval) {
+        historyRef.current.push({
+          throttle: targetRef.current.throttle,
+          brake: targetRef.current.brake,
+          time: now
         });
-        ctx.stroke();
+        lastSampleTimeRef.current = now;
+        const cutoff = now - (CHART_HISTORY_SECONDS * 1000);
+        historyRef.current = historyRef.current.filter(p => p.time > cutoff);
+      }
+    }
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.95)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, width, height, 6);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const pad = 5;
+    const chartWidth = width - pad * 2;
+    const chartHeight = height - pad * 2;
+    const history = historyRef.current;
+
+    if (history.length >= 2) {
+      const timeRange = CHART_HISTORY_SECONDS * 1000;
+      const toCanvasX = (time: number) => width - pad - ((now - time) / timeRange) * chartWidth;
+
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+      for (let i = 0; i < history.length - 1; i++) {
+        const p1 = history[i];
+        const p2 = history[i + 1];
+        if (p1.brake) {
+          const x1 = toCanvasX(p1.time);
+          const x2 = toCanvasX(p2.time);
+          ctx.fillRect(Math.min(x1, x2), pad, Math.abs(x2 - x1), chartHeight);
+        }
       }
 
-      // Compact legend overlay (top-left corner, inside chart)
-      ctx.font = 'bold 10px system-ui';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
+      ctx.beginPath();
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 2.5;
+      let started = false;
+      history.forEach(p => {
+        const x = toCanvasX(p.time);
+        const y = pad + chartHeight - (p.throttle / 100) * chartHeight;
+        if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+      });
+      ctx.stroke();
+    }
 
-      // Semi-transparent background for legend
-      const legendText = 'THR / BRK';
-      const textWidth = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fillRect(pad, pad, textWidth + 6, 12);
-
-      // Draw legend with colors
-      ctx.fillStyle = '#4ade80';
-      ctx.fillText('THR', pad + 2, pad + 2);
-      const thrWidth = ctx.measureText('THR').width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.fillText(' / ', pad + 2 + thrWidth, pad + 2);
-      const slashWidth = ctx.measureText(' / ').width;
-      ctx.fillStyle = '#f87171';
-      ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 2);
-
-      // Continue animation
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    // Start animation
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-    };
+    ctx.font = 'bold 10px system-ui';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const legendText = 'THR / BRK';
+    const textWidth = ctx.measureText(legendText).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(pad, pad, textWidth + 6, 12);
+    ctx.fillStyle = '#4ade80';
+    ctx.fillText('THR', pad + 2, pad + 2);
+    const thrWidth = ctx.measureText('THR').width;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillText(' / ', pad + 2 + thrWidth, pad + 2);
+    const slashWidth = ctx.measureText(' / ').width;
+    ctx.fillStyle = '#f87171';
+    ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 2);
   }, [paused]);
+
+  useAnimationFrame(drawPedalChart, !paused);
 
   return (
     <div className="bg-black/85 backdrop-blur-md rounded-xl p-2 text-white shadow-2xl border border-white/10">
@@ -977,16 +900,13 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<{ speed: number; time: number }[]>([]);
   const lastSampleTimeRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
   const targetRef = useRef({ speed: 0 });
   const lastVideoTimestampRef = useRef<number | undefined>(undefined);
   const pauseTimeRef = useRef<number>(0);
   const wasPausedRef = useRef<boolean>(false);
 
-  // Get current speed in the desired unit
   const speed = convertSpeed(data.vehicleSpeedMps, speedUnit);
 
-  // Detect clip jumps/discontinuities
   useEffect(() => {
     if (videoTimestamp !== undefined && lastVideoTimestampRef.current !== undefined) {
       const timeDiff = Math.abs(videoTimestamp - lastVideoTimestampRef.current);
@@ -997,13 +917,11 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
     lastVideoTimestampRef.current = videoTimestamp;
   }, [videoTimestamp]);
 
-  // Update target values when data changes
   useEffect(() => {
     targetRef.current = { speed };
   }, [speed]);
 
-  // Continuous animation loop
-  useEffect(() => {
+  const drawSpeedChart = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -1012,157 +930,100 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
 
     const width = 180;
     const height = 80;
+    const realNow = Date.now();
 
-    const animate = () => {
-      const realNow = Date.now();
+    if (paused && !wasPausedRef.current) {
+      pauseTimeRef.current = realNow;
+      wasPausedRef.current = true;
+    } else if (!paused && wasPausedRef.current) {
+      wasPausedRef.current = false;
+    }
 
-      // Handle pause/unpause transitions
-      if (paused && !wasPausedRef.current) {
-        pauseTimeRef.current = realNow;
-        wasPausedRef.current = true;
-      } else if (!paused && wasPausedRef.current) {
-        wasPausedRef.current = false;
+    const now = paused ? pauseTimeRef.current : realNow;
+
+    if (!paused) {
+      const minInterval = 1000 / CHART_SAMPLE_RATE;
+      if (now - lastSampleTimeRef.current >= minInterval) {
+        historyRef.current.push({ speed: targetRef.current.speed, time: now });
+        lastSampleTimeRef.current = now;
+        const cutoff = now - (CHART_HISTORY_SECONDS * 1000);
+        historyRef.current = historyRef.current.filter(p => p.time > cutoff);
       }
+    }
 
-      // Use frozen time when paused, real time when playing
-      const now = paused ? pauseTimeRef.current : realNow;
+    const maxSpeed = Math.max(speedUnit === 'mph' ? 80 : 130, ...historyRef.current.map(p => p.speed));
 
-      // Only update values when not paused
-      if (!paused) {
-        // Add samples at target rate using raw values (no smoothing for granularity)
-        const minInterval = 1000 / CHART_SAMPLE_RATE;
-        if (now - lastSampleTimeRef.current >= minInterval) {
-          historyRef.current.push({
-            speed: targetRef.current.speed,
-            time: now
-          });
-          lastSampleTimeRef.current = now;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, width, height, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
-          // Keep only last 10 seconds
-          const cutoff = now - (CHART_HISTORY_SECONDS * 1000);
-          historyRef.current = historyRef.current.filter(p => p.time > cutoff);
-        }
-      }
+    const pad = 4;
+    const chartWidth = width - pad * 2;
+    const chartHeight = height - pad * 2;
 
-      // Find max speed for scaling (or default to 80 mph / 130 kph)
-      const maxSpeed = Math.max(
-        speedUnit === 'mph' ? 80 : 130,
-        ...historyRef.current.map(p => p.speed)
-      );
-
-      // Clear
-      ctx.clearRect(0, 0, width, height);
-
-      // Background - use the full canvas
-      ctx.fillStyle = 'rgba(20, 20, 20, 0.4)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    const gridSpeeds = speedUnit === 'mph' ? [40, 80] : [60, 120];
+    gridSpeeds.forEach(spd => {
+      const y = pad + chartHeight - (spd / maxSpeed) * chartHeight;
       ctx.beginPath();
-      ctx.roundRect(0, 0, width, height, 8);
-      ctx.fill();
-
-      // Subtle border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = 1;
+      ctx.moveTo(pad, y);
+      ctx.lineTo(width - pad, y);
       ctx.stroke();
+    });
 
-      // Minimal padding to maximize chart area
-      const pad = 4;
-      const chartWidth = width - pad * 2;
-      const chartHeight = height - pad * 2;
+    const history = historyRef.current;
+    if (history.length >= 2) {
+      const timeRange = CHART_HISTORY_SECONDS * 1000;
+      const toCanvasX = (time: number) => width - pad - ((now - time) / timeRange) * chartWidth;
+      const toCanvasY = (spd: number) => pad + chartHeight - (Math.min(spd, maxSpeed) / maxSpeed) * chartHeight;
 
-      // Subtle grid lines (just a few horizontal)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
-      const gridSpeeds = speedUnit === 'mph' ? [40, 80] : [60, 120];
-      gridSpeeds.forEach(spd => {
-        const y = pad + chartHeight - (spd / maxSpeed) * chartHeight;
+      if (history.length > 0) {
+        const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
+        gradient.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
+        gradient.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
         ctx.beginPath();
-        ctx.moveTo(pad, y);
-        ctx.lineTo(width - pad, y);
-        ctx.stroke();
-      });
-
-      // Draw data
-      const history = historyRef.current;
-      if (history.length >= 2) {
-        const timeRange = CHART_HISTORY_SECONDS * 1000;
-
-        const toCanvasX = (time: number) => {
-          const timeOffset = now - time;
-          return width - pad - (timeOffset / timeRange) * chartWidth;
-        };
-
-        const toCanvasY = (speed: number) => {
-          return pad + chartHeight - (Math.min(speed, maxSpeed) / maxSpeed) * chartHeight;
-        };
-
-        // Fill area under the line with gradient - brighter
-        if (history.length > 0) {
-          const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
-          gradient.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
-          gradient.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
-
-          ctx.beginPath();
-          ctx.fillStyle = gradient;
-          const firstX = toCanvasX(history[0].time);
-          const firstY = toCanvasY(history[0].speed);
-          ctx.moveTo(firstX, height - pad);
-          ctx.lineTo(firstX, firstY);
-
-          history.forEach(p => {
-            const x = toCanvasX(p.time);
-            const y = toCanvasY(p.speed);
-            ctx.lineTo(x, y);
-          });
-
-          const lastX = toCanvasX(history[history.length - 1].time);
-          ctx.lineTo(lastX, height - pad);
-          ctx.closePath();
-          ctx.fill();
-        }
-
-        // Draw speed line (cyan) - thicker
-        ctx.beginPath();
-        ctx.strokeStyle = '#22d3ee';
-        ctx.lineWidth = 2;
-        let started = false;
-        history.forEach(p => {
-          const x = toCanvasX(p.time);
-          const y = toCanvasY(p.speed);
-          if (!started) {
-            ctx.moveTo(x, y);
-            started = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
-        ctx.stroke();
+        ctx.fillStyle = gradient;
+        const firstX = toCanvasX(history[0].time);
+        const firstY = toCanvasY(history[0].speed);
+        ctx.moveTo(firstX, height - pad);
+        ctx.lineTo(firstX, firstY);
+        history.forEach(p => ctx.lineTo(toCanvasX(p.time), toCanvasY(p.speed)));
+        const lastX = toCanvasX(history[history.length - 1].time);
+        ctx.lineTo(lastX, height - pad);
+        ctx.closePath();
+        ctx.fill();
       }
 
-      // Compact legend overlay (top-left corner, inside chart)
-      ctx.font = 'bold 9px system-ui';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
+      ctx.beginPath();
+      ctx.strokeStyle = '#22d3ee';
+      ctx.lineWidth = 2;
+      let started = false;
+      history.forEach(p => {
+        const x = toCanvasX(p.time);
+        const y = toCanvasY(p.speed);
+        if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+      });
+      ctx.stroke();
+    }
 
-      // Semi-transparent background for legend
-      const legendText = `SPD ${speedUnit.toUpperCase()}`;
-      const textWidth = ctx.measureText(legendText).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fillRect(pad, pad, textWidth + 6, 12);
-
-      ctx.fillStyle = '#22d3ee';
-      ctx.fillText(legendText, pad + 2, pad + 2);
-
-      // Continue animation
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    // Start animation
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-    };
+    ctx.font = 'bold 9px system-ui';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const legendText = `SPD ${speedUnit.toUpperCase()}`;
+    const textWidth = ctx.measureText(legendText).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(pad, pad, textWidth + 6, 12);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillText(legendText, pad + 2, pad + 2);
   }, [speedUnit, paused]);
+
+  useAnimationFrame(drawSpeedChart, !paused);
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
