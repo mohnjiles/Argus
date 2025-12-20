@@ -1,7 +1,7 @@
 /**
  * MiniMap Component
  * Displays vehicle location and heading on an interactive map
- * Uses Stadia Alidade Smooth Dark tiles for a sleek dark theme with readable labels
+ * Uses Carto Dark Matter tiles for a sleek dark theme with readable labels (Fully Free)
  * 
  * Features position smoothing and transition detection to prevent jarring jumps
  * when clips change during playback.
@@ -187,14 +187,23 @@ const createCarIcon = (heading: number) => {
 };
 
 // Map themes
+// Map themes - Switched to fully free providers (no API keys required)
 const MAP_THEMES = {
-    stadiaDark: {
-        url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
-        attribution: '&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap',
+    cartoDark: {
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    },
+    cartoVoyager: {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    },
+    osmStandard: {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     },
 } as const;
 
-const CURRENT_THEME = MAP_THEMES.stadiaDark;
+const CURRENT_THEME = MAP_THEMES.cartoDark;
 
 export function MiniMap({ lat, long, heading, zoom = 16 }: MiniMapProps) {
     const { stablePos, shouldAnimate } = useStablePosition(lat, long, heading);
@@ -237,8 +246,8 @@ export function MiniMap({ lat, long, heading, zoom = 16 }: MiniMapProps) {
                 <MapUpdater center={[stablePos.lat, stablePos.long]} animate={shouldAnimate} />
             </MapContainer>
 
-            <div className="absolute bottom-0 right-0 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 text-[7px] text-gray-400 pointer-events-none z-[400] rounded-tl">
-                © Stadia © OSM
+            <div className="absolute bottom-0 right-0 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 text-[6px] text-gray-400 pointer-events-none z-[400] rounded-tl">
+                © CARTO © OSM
             </div>
         </div>
     );

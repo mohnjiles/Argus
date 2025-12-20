@@ -61,10 +61,11 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
     let cellHeight = refConfig.height;
 
     // Apply quality scaling to cell
+    // Dimensions must be divisible by 16 for best hardware encoder compatibility
     if (cellHeight > preset.maxHeight) {
         const qualityScale = preset.maxHeight / cellHeight;
-        cellWidth = Math.floor(cellWidth * qualityScale / 2) * 2;
-        cellHeight = Math.floor(cellHeight * qualityScale / 2) * 2;
+        cellWidth = Math.floor(cellWidth * qualityScale / 16) * 16;
+        cellHeight = Math.floor(cellHeight * qualityScale / 16) * 16;
     }
 
     let outputWidth = cellWidth * layout.cols;
@@ -89,11 +90,23 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
     }
 
     if (scaleFactor < 1.0) {
-        cellWidth = Math.floor(cellWidth * scaleFactor / 2) * 2;
-        cellHeight = Math.floor(cellHeight * scaleFactor / 2) * 2;
+        // Ensure dimensions are divisible by 16 for hardware encoder compatibility
+        cellWidth = Math.floor(cellWidth * scaleFactor / 16) * 16;
+        cellHeight = Math.floor(cellHeight * scaleFactor / 16) * 16;
+        // Ensure minimum dimensions
+        cellWidth = Math.max(cellWidth, 64);
+        cellHeight = Math.max(cellHeight, 64);
         outputWidth = cellWidth * layout.cols;
         outputHeight = cellHeight * layout.rows;
     }
+
+    // Final safety: ensure output dimensions are also divisible by 16
+    outputWidth = Math.floor(outputWidth / 16) * 16;
+    outputHeight = Math.floor(outputHeight / 16) * 16;
+
+    // Minimum output dimensions
+    outputWidth = Math.max(outputWidth, 128);
+    outputHeight = Math.max(outputHeight, 128);
 
     console.log(`Export Layout: ${layout.cols}x${layout.rows}, Output: ${outputWidth}x${outputHeight} (${quality})`);
 
@@ -141,26 +154,89 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
     const frameRate = 1000 / avgFrameDuration;
 
     let encodeError: Error | null = null;
-    const encoder = new VideoEncoder({
-        output: (chunk, meta) => {
-            muxer.addVideoChunk(chunk, meta);
-        },
-        error: (e) => {
-            console.error('Encoder error:', e);
-            encodeError = e instanceof Error ? e : new Error(String(e));
-        },
-    });
+    let encoder: VideoEncoder;
 
     const bitrateMultiplier = Math.min(cameras.length, 2.5); // Increase bitrate for grid, but dimishing returns
 
-    encoder.configure({
-        codec: codecString,
-        width: outputWidth,
-        height: outputHeight,
-        bitrate: preset.bitrate * bitrateMultiplier,
-        framerate: frameRate,
-        hardwareAcceleration: 'prefer-hardware',
-    });
+    // Factory to create encoder with given hardware acceleration preference
+    function createEncoder(hwAccel: 'prefer-hardware' | 'prefer-software'): VideoEncoder {
+        encodeError = null;
+
+        const enc = new VideoEncoder({
+            output: (chunk, meta) => {
+                muxer.addVideoChunk(chunk, meta);
+            },
+            error: (e) => {
+                console.error('Encoder error:', e);
+                encodeError = e instanceof Error ? e : new Error(String(e));
+            },
+        });
+
+        enc.configure({
+            codec: codecString,
+            width: outputWidth,
+            height: outputHeight,
+            bitrate: preset.bitrate * bitrateMultiplier,
+            framerate: frameRate,
+            hardwareAcceleration: hwAccel,
+        });
+
+        return enc;
+    }
+
+    // Helper to wait and check if encoder configured successfully
+    async function waitForEncoderReady(enc: VideoEncoder): Promise<boolean> {
+        // Wait a bit for async error callback to fire if encoder creation fails
+        await new Promise(r => setTimeout(r, 100));
+
+        if (encodeError) {
+            console.warn('Encoder failed asynchronously:', encodeError);
+            return false;
+        }
+
+        // Check encoder state
+        if (enc.state !== 'configured') {
+            console.warn(`Encoder not in configured state: ${enc.state}`);
+            return false;
+        }
+
+        return true;
+    }
+
+    // Try hardware acceleration first
+    let useHardware = true;
+    encoder = createEncoder('prefer-hardware');
+
+    if (!await waitForEncoderReady(encoder)) {
+        console.warn('Hardware encoder failed, trying software...');
+
+        // Close failed encoder if it's not already closed
+        try {
+            if (encoder.state !== 'closed') {
+                encoder.close();
+            }
+        } catch { /* ignore */ }
+
+        useHardware = false;
+        encoder = createEncoder('prefer-software');
+
+        if (!await waitForEncoderReady(encoder)) {
+            // Close the failed encoder
+            try {
+                if (encoder.state !== 'closed') {
+                    encoder.close();
+                }
+            } catch { /* ignore */ }
+
+            throw new Error(
+                `Failed to create video encoder for ${outputWidth}x${outputHeight}. ` +
+                `This resolution may exceed your system's encoding capabilities. ` +
+                `Try selecting a lower quality preset (720p or 480p).`
+            );
+        }
+    }
+
+    console.log(`Encoder configured: ${outputWidth}x${outputHeight}, Hardware: ${useHardware}, Codec: ${codecString}`);
 
     // 4. Processing Loop
     const canvas = new OffscreenCanvas(outputWidth, outputHeight);
@@ -340,16 +416,29 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
                     }
 
                     if (sei && chartsToRender.length > 0) {
-                        // Prune history > 10s
-                        const cutoff = globalCumulativeTimeMs - 10000;
-                        while (speedHistory.length > 0 && speedHistory[0].timeOffset < cutoff) {
-                            speedHistory.shift();
-                        }
-                        while (pedalHistory.length > 0 && pedalHistory[0].timeOffset < cutoff) {
-                            pedalHistory.shift();
-                        }
-                        while (accelHistory.length > 0 && accelHistory[0].timeOffset < cutoff) {
-                            accelHistory.shift();
+                        // Prune history > 10s (only every 30 frames to reduce overhead)
+                        // Using splice instead of repeated shift() for O(n) vs O(n²) complexity
+                        if (globalFrameIndex % 30 === 0) {
+                            const cutoff = globalCumulativeTimeMs - 10000;
+
+                            // Find first index to keep using binary search approximation
+                            let pruneIdx = 0;
+                            while (pruneIdx < speedHistory.length && speedHistory[pruneIdx].timeOffset < cutoff) {
+                                pruneIdx++;
+                            }
+                            if (pruneIdx > 0) speedHistory.splice(0, pruneIdx);
+
+                            pruneIdx = 0;
+                            while (pruneIdx < pedalHistory.length && pedalHistory[pruneIdx].timeOffset < cutoff) {
+                                pruneIdx++;
+                            }
+                            if (pruneIdx > 0) pedalHistory.splice(0, pruneIdx);
+
+                            pruneIdx = 0;
+                            while (pruneIdx < accelHistory.length && accelHistory[pruneIdx].timeOffset < cutoff) {
+                                pruneIdx++;
+                            }
+                            if (pruneIdx > 0) accelHistory.splice(0, pruneIdx);
                         }
 
                         // Always collect data if charts are enabled (even if not rendering this frame or slot)
@@ -388,6 +477,14 @@ export async function runExportPipeline(options: ExportOptions): Promise<ExportR
                             }
                         });
                     }
+                }
+
+                // Backpressure: Wait if encoder queue is getting too full
+                // This prevents memory overflow when encoding can't keep up
+                const MAX_ENCODER_QUEUE = 8;
+                while (encoder.encodeQueueSize >= MAX_ENCODER_QUEUE) {
+                    await new Promise(r => setTimeout(r, 10));
+                    if (encodeError) throw encodeError;
                 }
 
                 // Encode

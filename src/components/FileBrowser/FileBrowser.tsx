@@ -315,7 +315,7 @@ export function FileBrowser({
       {/* Support Footer */}
       <div className="flex-shrink-0 px-4 py-4 bg-black/20 backdrop-blur-sm border-t border-gray-800/50">
         <a
-          href="https://ko-fi.com"
+          href="https://ko-fi.com/argusviewer"
           target="_blank"
           rel="noopener noreferrer"
           className="group relative flex gap-3 w-full px-4 py-3 bg-gradient-to-r from-tesla-red/10 to-tesla-red/5 border border-tesla-red/30 rounded-xl hover:translate-y-[-2px] hover:shadow-[0_4px_12px_rgba(232,33,39,0.2)] transition-all duration-300"

@@ -86,7 +86,9 @@ export class SequentialFrameBuffer {
     }
 
     private pump() {
-        const TARGET_BUFFER = 10;
+        // Reduced buffer size to lower memory usage during multi-camera exports
+        // Previously 10, which with 6 cameras meant 60 full-res frames buffered
+        const TARGET_BUFFER = 4;
 
         while (
             !this.error &&

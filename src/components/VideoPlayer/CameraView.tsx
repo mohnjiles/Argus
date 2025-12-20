@@ -8,6 +8,7 @@ import type { CameraAngle, SeiMetadata } from '../../types';
 import { CAMERA_LABELS } from '../../types';
 import { DashcamMP4 } from '../../lib/dashcam-mp4';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 
 export interface CameraViewHandle {
   play: () => void;
@@ -62,6 +63,9 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isVideoReady, setIsVideoReady] = useState(false);
+
+  // Page visibility - pause expensive operations when tab is hidden
+  const isPageVisible = usePageVisibility();
 
   // Expose imperative handle for parent control
   useImperativeHandle(ref, () => ({
@@ -184,23 +188,33 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
   }, [isPlaying, isVideoReady, camera]);
 
   // High-frequency time updates using requestAnimationFrame (for smooth seek bar)
+  // Pauses when page is not visible to save CPU
   useEffect(() => {
-    if (!isPlaying || !isVideoReady) return;
+    if (!isPlaying || !isVideoReady || !isPageVisible) return;
     // Only run if we have a time update callback
     if (!onTimeUpdateRef.current) return;
 
     let rafId: number;
-    const updateTime = () => {
-      const video = videoRef.current;
-      if (video && !video.paused) {
-        onTimeUpdateRef.current?.(video.currentTime);
+    let lastUpdateTime = 0;
+    const targetInterval = 1000 / 30; // Throttle to 30fps for seek bar updates
+
+    const updateTime = (timestamp: number) => {
+      // Throttle updates to 30fps
+      if (timestamp - lastUpdateTime >= targetInterval) {
+        lastUpdateTime = timestamp;
+        const video = videoRef.current;
+        if (video && !video.paused) {
+          onTimeUpdateRef.current?.(video.currentTime);
+          // Also trigger SEI sync
+          handleTimeUpdate();
+        }
       }
       rafId = requestAnimationFrame(updateTime);
     };
     rafId = requestAnimationFrame(updateTime);
 
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, isVideoReady]);
+  }, [isPlaying, isVideoReady, isPageVisible]);
 
   // Handle time synchronization when paused (for frame stepping)
   useEffect(() => {
@@ -211,6 +225,8 @@ export const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(function
     // 0.001s is enough to detect a deliberate state change from the seek bar or hotkeys
     if (Math.abs(video.currentTime - initialTime) > 0.001) {
       video.currentTime = initialTime;
+      // Sync SEI immediately when seeking/stepping
+      handleTimeUpdate();
     }
   }, [initialTime, isPlaying, isVideoReady]);
 

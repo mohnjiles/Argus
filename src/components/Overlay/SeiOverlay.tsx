@@ -5,7 +5,7 @@
 
 import { useRef, useEffect, useCallback } from 'react';
 import type { SeiMetadata, SpeedUnit } from '../../types';
-import { useAnimationFrame } from '../../hooks/useAnimationFrame';
+import { useThrottledAnimationFrame } from '../../hooks/useAnimationFrame';
 import {
   AutopilotState,
   GEAR_LABELS,
@@ -52,7 +52,7 @@ export function SeiOverlay({ data, speedUnit }: SeiOverlayProps) {
       <div className="flex items-center gap-3">
         {/* Speed */}
         <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-bold tabular-nums leading-none tracking-tight">{Math.round(speed)}</span>
+          <span className="text-3xl font-bold tabular-nums leading-none tracking-tight">{speed.toFixed(1)}</span>
           <span className="text-[10px] text-gray-400 uppercase font-bold">{speedUnit}</span>
         </div>
 
@@ -78,7 +78,7 @@ export function SeiOverlay({ data, speedUnit }: SeiOverlayProps) {
         {/* Steering */}
         <div className="flex items-center gap-2">
           <SteeringIcon angle={data.steeringWheelAngle} size={16} />
-          <span className="text-xs font-bold tabular-nums">{data.steeringWheelAngle.toFixed(0)}°</span>
+          <span className="text-xs font-bold tabular-nums">{data.steeringWheelAngle.toFixed(1)}°</span>
         </div>
 
         {/* Accelerator */}
@@ -159,7 +159,6 @@ function SteeringIcon({ angle, size = 20 }: { angle: number; size?: number }) {
           width: size,
           height: size,
           transform: `rotate(${angle}deg)`,
-          transition: 'transform 0.1s ease-out',
         }}
         className="brightness-0 invert opacity-80"
       />
@@ -328,8 +327,8 @@ function getGDotColor(g: number): string {
   return '#ef4444';               // Red
 }
 
-// Smooth interpolation factor (0-1, higher = faster response)
-const SMOOTHING = 0.15;
+// Smooth interpolation factor (0-1, higher = faster response). Set to 1.0 for raw/unsmoothed values.
+const SMOOTHING = 1.0;
 
 // Lerp helper
 function lerp(current: number, target: number, factor: number): number {
@@ -533,8 +532,8 @@ export function GMeter({ data, paused = false, videoTimestamp }: { data: SeiMeta
     ctx.fill();
   }, [paused]);
 
-  // Animation loop - automatically stops when paused
-  useAnimationFrame(drawGMeter, !paused);
+  // Animation loop - throttled to 30fps, automatically stops when paused
+  useThrottledAnimationFrame(drawGMeter, { isActive: !paused, targetFps: 30 });
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-2.5 text-white shadow-2xl border border-white/10">
@@ -793,8 +792,8 @@ export function AccelChart({ data, paused = false, videoTimestamp }: { data: Sei
     ctx.fillText('LAT', pad + 2 + lonWidth + slashWidth, pad + 16);
   }, [paused]);
 
-  // Animation loop - automatically stops when paused
-  useAnimationFrame(drawAccelChart, !paused);
+  // Animation loop - throttled to 30fps, automatically stops when paused
+  useThrottledAnimationFrame(drawAccelChart, { isActive: !paused, targetFps: 30 });
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
@@ -951,7 +950,8 @@ export function PedalChart({ data, paused = false, videoTimestamp }: { data: Sei
     ctx.fillText('BRK', pad + 2 + thrWidth + slashWidth, pad + 16);
   }, [paused]);
 
-  useAnimationFrame(drawPedalChart, !paused);
+  // Animation loop - throttled to 30fps
+  useThrottledAnimationFrame(drawPedalChart, { isActive: !paused, targetFps: 30 });
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
@@ -1096,7 +1096,8 @@ export function SpeedChart({ data, speedUnit, paused = false, videoTimestamp }: 
     ctx.fillText(legendText, pad + 2, pad + 2);
   }, [speedUnit, paused]);
 
-  useAnimationFrame(drawSpeedChart, !paused);
+  // Animation loop - throttled to 30fps
+  useThrottledAnimationFrame(drawSpeedChart, { isActive: !paused, targetFps: 30 });
 
   return (
     <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1.5 text-white shadow-2xl border border-white/10">
